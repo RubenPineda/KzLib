@@ -1,0 +1,263 @@
+// Copyright 2025 kirzo
+
+#include "Misc/KzTransformSource.h"
+
+FKzTransformSource::FKzTransformSource(const AActor* Actor, FVector RelativeLocation)
+	: FKzTransformSource(Actor, FTransform(RelativeLocation))
+{
+}
+
+FKzTransformSource::FKzTransformSource(const AActor* Actor, FTransform RelativeTransform)
+{
+	SourceType = EKzTransformSourceType::Actor;
+	SourceActor = Actor;
+	LiteralTransform = RelativeTransform;
+}
+
+FKzTransformSource::FKzTransformSource(const USceneComponent* SceneComponent, FName SocketName, FVector RelativeLocation)
+	: FKzTransformSource(SceneComponent, SocketName, FTransform(RelativeLocation))
+{
+}
+
+FKzTransformSource::FKzTransformSource(const USceneComponent* SceneComponent, FName SocketName, FTransform RelativeTransform)
+{
+	SourceType = EKzTransformSourceType::Scene;
+	SourceComponent = SceneComponent;
+	SourceSocketName = SocketName;
+	LiteralTransform = RelativeTransform;
+}
+
+FKzTransformSource::FKzTransformSource(FVector Location)
+	: FKzTransformSource(FTransform(Location))
+{
+}
+
+FKzTransformSource::FKzTransformSource(FQuat Quat)
+	: FKzTransformSource(FTransform(Quat))
+{
+}
+
+FKzTransformSource::FKzTransformSource(FRotator Rotation)
+	: FKzTransformSource(FTransform(Rotation))
+{
+}
+
+FKzTransformSource::FKzTransformSource(FTransform Transform)
+{
+	SourceType = EKzTransformSourceType::Literal;
+	LiteralTransform = Transform;
+}
+
+FVector FKzTransformSource::GetLocation() const
+{
+	return GetTransform().GetLocation();
+}
+
+FQuat FKzTransformSource::GetQuat() const
+{
+	return GetTransform().GetRotation();
+}
+
+FRotator FKzTransformSource::GetRotation() const
+{
+	return GetTransform().Rotator();
+}
+
+FTransform FKzTransformSource::GetTransform() const
+{
+	// Return or calculate based on SourceType.
+	switch (SourceType)
+	{
+		case EKzTransformSourceType::Actor:
+		{
+			if (SourceActor)
+			{
+				return LiteralTransform * SourceActor->GetTransform();
+			}
+			break;
+		}
+		case EKzTransformSourceType::Scene:
+		{
+			if (SourceComponent)
+			{
+				// Bad socket name will just return component transform anyway, so we're safe
+				return LiteralTransform * SourceComponent->GetSocketTransform(SourceSocketName);
+			}
+			break;
+		}
+		case EKzTransformSourceType::Literal:
+		{
+			return LiteralTransform;
+		}
+		case EKzTransformSourceType::Invalid:
+		{
+			return FTransform::Identity;
+		}
+		default:
+		{
+			check(false);
+			break;
+		}
+	}
+
+	// It cannot get here
+	return FTransform::Identity;
+}
+
+FVector FKzTransformSource::GetRelativeLocation() const
+{
+	return GetRelativeTransform().GetLocation();
+}
+
+FQuat FKzTransformSource::GetRelativeQuat() const
+{
+	return GetRelativeTransform().GetRotation();
+}
+
+FRotator FKzTransformSource::GetRelativeRotation() const
+{
+	return GetRelativeTransform().Rotator();
+}
+
+FTransform FKzTransformSource::GetRelativeTransform() const
+{
+	// Return or calculate based on SourceType.
+	switch (SourceType)
+	{
+		case EKzTransformSourceType::Actor:
+		case EKzTransformSourceType::Scene:
+		case EKzTransformSourceType::Literal:
+		{
+			return LiteralTransform;
+		}
+		case EKzTransformSourceType::Invalid:
+		{
+			return FTransform::Identity;
+		}
+		default:
+		{
+			check(false);
+			break;
+		}
+	}
+
+	// It cannot get here
+	return FTransform::Identity;
+}
+
+const AActor* FKzTransformSource::GetActor() const
+{
+	switch (SourceType)
+	{
+		case EKzTransformSourceType::Actor:
+		{
+			return SourceActor;
+		}
+		case EKzTransformSourceType::Scene:
+		{
+			return SourceComponent ? SourceComponent->GetOwner() : nullptr;
+		}
+	}
+
+	return nullptr;
+}
+
+const USceneComponent* FKzTransformSource::GetSceneComponent() const
+{
+	switch (SourceType)
+	{
+		case EKzTransformSourceType::Actor:
+		{
+			if (SourceActor)
+			{
+				return SourceActor->GetRootComponent();
+			}
+			break;
+		}
+		case EKzTransformSourceType::Scene:
+		{
+			return SourceComponent;
+		}
+	}
+
+	return nullptr;
+}
+
+void FKzTransformSource::Invalidate()
+{
+	*this = FKzTransformSource();
+}
+
+bool FKzTransformSource::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
+{
+	Ar << (uint8&)SourceType;
+
+	switch (SourceType)
+	{
+		case EKzTransformSourceType::Invalid:
+		{
+			break;
+		}
+		case EKzTransformSourceType::Actor:
+		{
+			Ar << LiteralTransform;
+			Ar << SourceActor;
+			break;
+		}
+		case EKzTransformSourceType::Scene:
+		{
+			Ar << LiteralTransform;
+			Ar << SourceComponent;
+			Ar << SourceSocketName;
+			break;
+		}
+		case EKzTransformSourceType::Literal:
+		{
+			Ar << LiteralTransform;
+			break;
+		}
+		default:
+		check(false);	//This case should not happen
+		break;
+	}
+
+	bOutSuccess = true;
+	return true;
+}
+
+bool FKzTransformSource::operator==(const FKzTransformSource& Other) const
+{
+	if (Other.SourceType == SourceType)
+	{
+		switch (SourceType)
+		{
+			case EKzTransformSourceType::Actor:
+			{
+				return SourceActor == Other.SourceActor && LiteralTransform.Equals(Other.LiteralTransform);
+			}
+			case EKzTransformSourceType::Scene:
+			{
+				return SourceComponent == Other.SourceComponent && SourceSocketName == Other.SourceSocketName && LiteralTransform.Equals(Other.LiteralTransform);
+			}
+			case EKzTransformSourceType::Literal:
+			{
+				return LiteralTransform.Equals(Other.LiteralTransform);
+			}
+			case EKzTransformSourceType::Invalid:
+			{
+				return true;
+			}
+			default:
+			{
+				check(false);
+				break;
+			}
+		}
+	}
+	return false;
+}
+
+bool FKzTransformSource::operator!=(const FKzTransformSource& Other) const
+{
+	return !(*this == Other);
+}
