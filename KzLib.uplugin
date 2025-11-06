@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "KzLib",
+	"Description": "KzLib is a lightweight modular library that extends Unreal Engine with math, geometry, and general-purpose utility functions for both C++ and Blueprint.",
+	"Category": "Other",
+	"CreatedBy": "kirzo",
+	"CreatedByURL": "https://kirzo.dev",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "KzLib",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
