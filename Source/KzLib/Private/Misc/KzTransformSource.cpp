@@ -9,9 +9,7 @@ FKzTransformSource::FKzTransformSource(const AActor* Actor, FVector RelativeLoca
 
 FKzTransformSource::FKzTransformSource(const AActor* Actor, FTransform RelativeTransform)
 {
-	SourceType = EKzTransformSourceType::Actor;
-	SourceActor = Actor;
-	LiteralTransform = RelativeTransform;
+	Initialize(Actor, RelativeTransform);
 }
 
 FKzTransformSource::FKzTransformSource(const USceneComponent* SceneComponent, FName SocketName, FVector RelativeLocation)
@@ -21,10 +19,7 @@ FKzTransformSource::FKzTransformSource(const USceneComponent* SceneComponent, FN
 
 FKzTransformSource::FKzTransformSource(const USceneComponent* SceneComponent, FName SocketName, FTransform RelativeTransform)
 {
-	SourceType = EKzTransformSourceType::Scene;
-	SourceComponent = SceneComponent;
-	SourceSocketName = SocketName;
-	LiteralTransform = RelativeTransform;
+	Initialize(SceneComponent, SocketName, RelativeTransform);
 }
 
 FKzTransformSource::FKzTransformSource(FVector Location)
@@ -44,8 +39,71 @@ FKzTransformSource::FKzTransformSource(FRotator Rotation)
 
 FKzTransformSource::FKzTransformSource(FTransform Transform)
 {
+	Initialize(Transform);
+}
+
+void FKzTransformSource::Initialize(const AActor* Actor, FVector RelativeLocation)
+{
+	Initialize(Actor, FTransform(RelativeLocation));
+}
+
+void FKzTransformSource::Initialize(const AActor* Actor, FTransform RelativeTransform)
+{
+	Reset();
+	if (Actor)
+	{
+		SourceType = EKzTransformSourceType::Actor;
+		SourceActor = Actor;
+		LiteralTransform = RelativeTransform;
+	}
+}
+
+void FKzTransformSource::Initialize(const USceneComponent* SceneComponent, FName SocketName, FVector RelativeLocation)
+{
+	Initialize(SceneComponent, SocketName, FTransform(RelativeLocation));
+}
+
+void FKzTransformSource::Initialize(const USceneComponent* SceneComponent, FName SocketName, FTransform RelativeTransform)
+{
+	Reset();
+	if (SceneComponent)
+	{
+		SourceType = EKzTransformSourceType::Scene;
+		SourceComponent = SceneComponent;
+		SourceSocketName = SocketName;
+		LiteralTransform = RelativeTransform;
+	}
+}
+
+void FKzTransformSource::Initialize(FVector Location)
+{
+	Initialize(FTransform(Location));
+}
+
+void FKzTransformSource::Initialize(FQuat Quat)
+{
+	Initialize(FTransform(Quat));
+}
+
+void FKzTransformSource::Initialize(FRotator Rotation)
+{
+	Initialize(FTransform(Rotation));
+}
+
+void FKzTransformSource::Initialize(FTransform Transform)
+{
+	Reset();
 	SourceType = EKzTransformSourceType::Literal;
 	LiteralTransform = Transform;
+}
+
+void FKzTransformSource::Reset()
+{
+	SourceType = EKzTransformSourceType::Invalid;
+	LiteralTransform = FTransform::Identity;
+	SourceActor = nullptr;
+	SourceComponent = nullptr;
+	SourceSocketName = NAME_None;
 }
 
 FVector FKzTransformSource::GetLocation() const

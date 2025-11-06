@@ -53,6 +53,7 @@ struct KZLIB_API FKzTransformSource
 	FName SourceSocketName;
 
 	FKzTransformSource() = default;
+	FKzTransformSource(ENoInit) {}
 	FKzTransformSource(const AActor* Actor, FVector RelativeLocation = FVector::ZeroVector);
 	FKzTransformSource(const AActor* Actor, FTransform RelativeTransform = FTransform::Identity);
 	FKzTransformSource(const USceneComponent* SceneComponent, FName SocketName = NAME_None, FVector RelativeLocation = FVector::ZeroVector);
@@ -61,6 +62,17 @@ struct KZLIB_API FKzTransformSource
 	FKzTransformSource(FQuat Quat);
 	FKzTransformSource(FRotator Rotation);
 	FKzTransformSource(FTransform Transform);
+
+	void Initialize(const AActor* Actor, FVector RelativeLocation = FVector::ZeroVector);
+	void Initialize(const AActor* Actor, FTransform RelativeTransform = FTransform::Identity);
+	void Initialize(const USceneComponent* SceneComponent, FName SocketName = NAME_None, FVector RelativeLocation = FVector::ZeroVector);
+	void Initialize(const USceneComponent* SceneComponent, FName SocketName = NAME_None, FTransform RelativeTransform = FTransform::Identity);
+	void Initialize(FVector Location);
+	void Initialize(FQuat Quat);
+	void Initialize(FRotator Rotation);
+	void Initialize(FTransform Transform);
+
+	void Reset();
 
 	template<typename T>
 	inline T Get() const { static_assert(sizeof(T) == 0, "Unsupported conversion for type"); }
