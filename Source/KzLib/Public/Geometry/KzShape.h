@@ -370,7 +370,9 @@ struct FKzCylinder : public FKzShape
 #undef SHAPE_TYPE_BOILERPLATE
 
 /**
- * Base structure for all geometric shape types.
+ * Defines a specific geometric shape instance with its parameters.
+ *
+ * Used to describe individual shapes used in queries, overlaps, or procedural geometry operations.
  */
 USTRUCT(BlueprintType, meta = (ShowOnlyInnerProperties))
 struct KZLIB_API FKzShapeInstance
