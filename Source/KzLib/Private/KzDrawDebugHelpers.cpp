@@ -1,7 +1,7 @@
 // Copyright 2025 kirzo
 
 #include "KzDrawDebugHelpers.h"
-#include "Geometry/KzShape.h"
+#include "Geometry/KzShapeInstance.h"
 
 #if ENABLE_DRAW_DEBUG
 
@@ -55,32 +55,9 @@ void DrawDebugShape(const UWorld* InWorld, FVector const& Position, const FQuat&
 	// no debug line drawing on dedicated server
 	if (GEngine->GetNetMode(InWorld) != NM_DedicatedServer)
 	{
-		switch (Shape.GetType())
+		if (Shape.IsValid())
 		{
-			case EKzShapeType::Sphere:
-			{
-				DrawDebugSphere(InWorld, Position, Shape.As<FKzSphere>().Radius, 12, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
-				break;
-			}
-			case EKzShapeType::Box:
-			{
-				DrawDebugBox(InWorld, Position, Shape.As<FKzBox>().HalfSize, Orientation, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
-				break;
-			}
-			case EKzShapeType::Capsule:
-			{
-				const FKzCapsule Capsule = Shape.As<FKzCapsule>();
-				DrawDebugCapsule(InWorld, Position, Capsule.HalfHeight, Capsule.Radius, Orientation, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
-				break;
-			}
-			case EKzShapeType::Cylinder:
-			{
-				const FKzCylinder Cylinder = Shape.As<FKzCylinder>();
-				const FVector UpVector = Orientation.GetUpVector();
-				DrawDebugCylinder(InWorld, Position - UpVector * Cylinder.HalfHeight, Position + UpVector * Cylinder.HalfHeight, Cylinder.Radius, 12, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
-				break;
-			}
-			default: break;
+			Shape.As<FKzShape>().DrawDebug(InWorld, Position, Orientation, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
 		}
 	}
 	else

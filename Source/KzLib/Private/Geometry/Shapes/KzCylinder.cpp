@@ -1,0 +1,30 @@
+// Copyright 2025 kirzo
+
+#include "Geometry/Shapes/KzCylinder.h"
+#include "DrawDebugHelpers.h"
+#include "Materials/MaterialRenderProxy.h"
+
+void FKzCylinder::DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+{
+	const FVector UpVector = Orientation.GetUpVector();
+	DrawDebugCylinder(InWorld, Position - UpVector * HalfHeight, Position + UpVector * HalfHeight, Radius, 12, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
+}
+
+void FKzCylinder::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const
+{
+	const FVector Origin = LocalToWorld.GetOrigin();
+	const FVector UnitX = LocalToWorld.GetUnitAxis(EAxis::X);
+	const FVector UnitY = LocalToWorld.GetUnitAxis(EAxis::Y);
+	const FVector UnitZ = LocalToWorld.GetUnitAxis(EAxis::Z);
+
+	const int32 CylinderSides = FMath::Clamp<int32>(Radius / 50, 16, 64);
+	DrawWireCylinder(PDI, Origin, UnitX, UnitY, UnitZ, Color, Radius, HalfHeight, CylinderSides, SDPG_World, Thickness);
+
+	if (bDrawSolid)
+	{
+		const FLinearColor SolidColor = FLinearColor(Color.R, Color.G, Color.B, 0.2f);
+
+		FMaterialRenderProxy* const MaterialRenderProxy = new FColoredMaterialRenderProxy(GEngine->DebugMeshMaterial->GetRenderProxy(), SolidColor);
+		GetCylinderMesh(FMatrix::Identity, Origin, UnitX, UnitY, UnitZ, Radius, HalfHeight, CylinderSides, MaterialRenderProxy, SDPG_World, ViewIndex, Collector);
+	}
+}
