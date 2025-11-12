@@ -395,8 +395,8 @@ public:
 
 		TConstIterator(InternalIter Begin, InternalIter End) : EntryIterator(Begin), EndEntryIterator(End) {}
 
-		const ElementType& operator*() const { FEntry& Entry = *EntryIterator; return Entry.Value; }
-		ElementType const* operator->() const { FEntry& Entry = *EntryIterator; return &Entry.Value; }
+		const ElementType& operator*() const { const FEntry& Entry = *EntryIterator; return Entry.Value; }
+		ElementType const* operator->() const { const FEntry& Entry = *EntryIterator; return &Entry.Value; }
 		TConstIterator& operator++() { ++EntryIterator; return *this; }
 		explicit operator bool() const { return EntryIterator != EndEntryIterator; }
 		friend bool operator==(const TConstIterator& Lhs, const TConstIterator& Rhs) { return Lhs.EntryIterator == Rhs.EntryIterator; };
@@ -431,8 +431,8 @@ public:
 
 		TConstReverseIterator(InternalIter Begin, InternalIter End) : EntryIterator(Begin), EndEntryIterator(End) {}
 
-		const ElementType& operator*() const { FEntry& Entry = *EntryIterator; return Entry.Value; }
-		ElementType const* operator->() const { FEntry& Entry = *EntryIterator; return &Entry.Value; }
+		const ElementType& operator*() const { const FEntry& Entry = *EntryIterator; return Entry.Value; }
+		ElementType const* operator->() const { const FEntry& Entry = *EntryIterator; return &Entry.Value; }
 		TConstReverseIterator& operator++() { ++EntryIterator; return *this; }
 		explicit operator bool() const { return EntryIterator != EndEntryIterator; }
 		friend bool operator==(const TConstReverseIterator& Lhs, const TConstReverseIterator& Rhs) { return Lhs.EntryIterator == Rhs.EntryIterator; };
