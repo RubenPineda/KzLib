@@ -24,6 +24,7 @@ public class KzLib : ModuleRules
 				"SlateCore",
 				"RenderCore",
 				"Projects",
+				"NetCore"
 			}
 			);
 
