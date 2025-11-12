@@ -130,12 +130,12 @@ FCollisionShape UKzShapeComponent::GetCollisionShape(float Inflation) const
 
 FBoxSphereBounds UKzShapeComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
-	return Shape.GetAABB(LocalToWorld);
+	return Shape.GetBoundingBox(LocalToWorld);
 }
 
 void UKzShapeComponent::CalcBoundingCylinder(float& CylinderRadius, float& CylinderHalfHeight) const
 {
-	const FVector BoundsHalfsize = Shape.GetAABB(GetComponentTransform()).GetExtent();
+	const FVector BoundsHalfsize = Shape.GetBoundingBox(GetComponentTransform()).GetExtent();
 	CylinderRadius = FMath::Sqrt(FMath::Square(BoundsHalfsize.X) + FMath::Square(BoundsHalfsize.Y));
 	CylinderHalfHeight = BoundsHalfsize.Z;
 }

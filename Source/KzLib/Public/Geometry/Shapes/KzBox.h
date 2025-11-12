@@ -33,7 +33,7 @@ struct KZLIB_API FKzBox : public FKzShape
 		HalfSize.Z = FMath::Max(0.0f, HalfSize.Z);
 	}
 
-	virtual FBox GetAABB(const FVector& Position, const FQuat& Orientation) const override
+	virtual FBox GetBoundingBox(const FVector& Position, const FQuat& Orientation) const override
 	{
 		const FVector AxisX = Orientation.GetAxisX();
 		const FVector AxisY = Orientation.GetAxisY();

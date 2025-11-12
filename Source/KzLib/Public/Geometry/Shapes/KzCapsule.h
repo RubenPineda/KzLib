@@ -35,7 +35,7 @@ struct KZLIB_API FKzCapsule : public FKzShape
 		Radius = FMath::Clamp(Radius, 0.0f, HalfHeight);
 	}
 
-	virtual FBox GetAABB(const FVector& Position, const FQuat& Orientation) const override
+	virtual FBox GetBoundingBox(const FVector& Position, const FQuat& Orientation) const override
 	{
 		// Vector from center to one cap center (local +Z axis)
 		const FVector Axis = Orientation.GetAxisZ();

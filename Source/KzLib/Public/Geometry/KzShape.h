@@ -22,7 +22,7 @@ public:
 	virtual void Sanitize() {}
 
 	/** Computes the world-space axis-aligned bounding box (AABB) for this shape. */
-	virtual FBox GetAABB(const FVector& Position, const FQuat& Orientation) const PURE_VIRTUAL(FKzShape::GetAABB, return {};);
+	virtual FBox GetBoundingBox(const FVector& Position, const FQuat& Orientation) const PURE_VIRTUAL(FKzShape::GetBoundingBox, return {};);
 
 	/** Returns an engine-level FCollisionShape representing this Kz shape. */
 	virtual struct FCollisionShape ToCollisionShape(float Inflation = 0.0f) const PURE_VIRTUAL(FKzShape::ToCollisionShape, return {};);

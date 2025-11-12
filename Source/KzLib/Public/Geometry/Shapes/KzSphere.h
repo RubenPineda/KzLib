@@ -31,7 +31,7 @@ struct KZLIB_API FKzSphere : public FKzShape
 		Radius = FMath::Max(0.0f, Radius);
 	}
 
-	virtual FBox GetAABB(const FVector& Position, const FQuat& Orientation) const override
+	virtual FBox GetBoundingBox(const FVector& Position, const FQuat& Orientation) const override
 	{
 		const FVector Extent(Radius);
 		return FBox(Position - Extent, Position + Extent);

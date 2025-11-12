@@ -211,15 +211,15 @@ public:
 	FORCEINLINE bool IsZeroExtent() const { return IsValid() ? Shape.Get().IsZeroExtent() : true; }
 
 	/** Computes the world-space axis-aligned bounding box (AABB) for this shape. */
-	FORCEINLINE FBox GetAABB(const FTransform& Transform) const
+	FORCEINLINE FBox GetBoundingBox(const FTransform& Transform) const
 	{
-		return GetAABB(Transform.GetLocation(), Transform.GetRotation());
+		return GetBoundingBox(Transform.GetLocation(), Transform.GetRotation());
 	}
 
 	/** Computes the world-space axis-aligned bounding box (AABB) for this shape. */
-	FORCEINLINE FBox GetAABB(const FVector& Position, const FQuat& Orientation) const
+	FORCEINLINE FBox GetBoundingBox(const FVector& Position, const FQuat& Orientation) const
 	{
-		return IsValid() ? Shape.Get().GetAABB(Position, Orientation) : FBox(ForceInitToZero);
+		return IsValid() ? Shape.Get().GetBoundingBox(Position, Orientation) : FBox(ForceInitToZero);
 	}
 
 	/** Returns an engine-level FCollisionShape representing this Kz shape. */

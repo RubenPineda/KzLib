@@ -182,7 +182,7 @@ void UKzGeomLibrary::DrawDebugShape(const UObject* WorldContextObject, const FVe
 
 FBox UKzGeomLibrary::GetShapeAABB(const FVector& Position, const FQuat& Orientation, const FKzShapeInstance& Shape)
 {
-	return Shape.GetAABB(Position, Orientation);
+	return Shape.GetBoundingBox(Position, Orientation);
 }
 
 FBox UKzGeomLibrary::K2_GetShapeAABB(const FVector Position, const FRotator Orientation, const FKzShapeInstance& Shape)
@@ -227,7 +227,7 @@ FKzShapeInstance UKzGeomLibrary::MakeSphere(const float Radius)
 
 FBox UKzGeomLibrary::GetSphereAABB(const FVector Center, float Radius)
 {
-	return FKzSphere(Radius).GetAABB(Center, FQuat::Identity);
+	return FKzSphere(Radius).GetBoundingBox(Center, FQuat::Identity);
 }
 
 FVector UKzGeomLibrary::ClosestPointOnSphere(const FVector Center, float Radius, FVector Point)
@@ -252,7 +252,7 @@ FKzShapeInstance UKzGeomLibrary::MakeBox(const FVector HalfSize)
 
 FBox UKzGeomLibrary::GetBoxAABB(const FVector& Center, const FVector& HalfSize, const FQuat& Orientation)
 {
-	return FKzBox(HalfSize).GetAABB(Center, Orientation);
+	return FKzBox(HalfSize).GetBoundingBox(Center, Orientation);
 }
 
 FBox UKzGeomLibrary::K2_GetBoxAABB(const FVector Center, const FVector HalfSize, const FRotator Orientation)
@@ -297,7 +297,7 @@ FKzShapeInstance UKzGeomLibrary::MakeCapsule(const float Radius, const float Hal
 
 FBox UKzGeomLibrary::GetCapsuleAABB(const FVector& Center, float Radius, float HalfHeight, const FQuat& Orientation)
 {
-	return FKzCapsule(Radius, HalfHeight).GetAABB(Center, Orientation);
+	return FKzCapsule(Radius, HalfHeight).GetBoundingBox(Center, Orientation);
 }
 
 FBox UKzGeomLibrary::K2_GetCapsuleAABB(const FVector Center, float Radius, float HalfHeight, const FRotator Orientation)
@@ -342,7 +342,7 @@ FKzShapeInstance UKzGeomLibrary::MakeCylinder(const float Radius, const float Ha
 
 FBox UKzGeomLibrary::GetCylinderAABB(const FVector& Center, float Radius, float HalfHeight, const FQuat& Orientation)
 {
-	return FKzCylinder(Radius, HalfHeight).GetAABB(Center, Orientation);
+	return FKzCylinder(Radius, HalfHeight).GetBoundingBox(Center, Orientation);
 }
 
 FBox UKzGeomLibrary::K2_GetCylinderAABB(const FVector Center, float Radius, float HalfHeight, const FRotator Orientation)

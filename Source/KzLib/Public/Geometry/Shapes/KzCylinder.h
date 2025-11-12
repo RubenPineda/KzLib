@@ -35,7 +35,7 @@ struct KZLIB_API FKzCylinder : public FKzShape
 		HalfHeight = FMath::Max(0.0f, HalfHeight);
 	}
 
-	virtual FBox GetAABB(const FVector& Position, const FQuat& Orientation) const override
+	virtual FBox GetBoundingBox(const FVector& Position, const FQuat& Orientation) const override
 	{
 		// Axis of the cylinder in world space
 		const FVector Axis = Orientation.GetAxisZ();
