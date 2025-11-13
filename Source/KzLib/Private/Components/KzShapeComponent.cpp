@@ -1,7 +1,7 @@
 // Copyright 2025 kirzo
 
 #include "Components/KzShapeComponent.h"
-#include "Geometry/Shapes/CommonShapes.h"
+#include "Math/Geometry/Shapes/CommonShapes.h"
 
 UKzShapeComponent::UKzShapeComponent()
 {

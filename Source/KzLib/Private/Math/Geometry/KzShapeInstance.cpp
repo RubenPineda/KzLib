@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "Geometry/KzShapeInstance.h"
-#include "Geometry/Shapes/KzSphere.h"
+#include "Math/Geometry/KzShapeInstance.h"
+#include "Math/Geometry/Shapes/KzSphere.h"
 
 FKzShapeInstance::FKzShapeInstance()
 {

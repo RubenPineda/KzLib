@@ -1,7 +1,7 @@
 // Copyright 2025 kirzo
 
 #include "KzDrawDebugHelpers.h"
-#include "Geometry/KzShapeInstance.h"
+#include "Math/Geometry/KzShapeInstance.h"
 
 #if ENABLE_DRAW_DEBUG
 

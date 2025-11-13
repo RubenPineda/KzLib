@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ShapeComponent.h"
-#include "Geometry/KzShapeInstance.h"
+#include "Math/Geometry/KzShapeInstance.h"
 #include "KzShapeComponent.generated.h"
 
 /** A component that defines a renderable geometric shape using the KzLib shape system. */

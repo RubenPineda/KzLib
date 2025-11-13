@@ -1,6 +1,6 @@
 // Copyright 2025 kirzo
 
-#include "Geometry/Shapes/KzBox.h"
+#include "Math/Geometry/Shapes/KzBox.h"
 #include "Collision/KzRaycast.h"
 #include "DrawDebugHelpers.h"
 #include "Materials/MaterialRenderProxy.h"

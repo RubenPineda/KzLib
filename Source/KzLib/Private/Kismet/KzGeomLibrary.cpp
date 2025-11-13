@@ -1,10 +1,13 @@
 // Copyright 2025 kirzo
 
 #include "Kismet/KzGeomLibrary.h"
+
 #include "Collision/KzHitResult.h"
 #include "Collision/KzRaycast.h"
-#include "Geometry/KzShapeInstance.h"
-#include "Geometry/Shapes/CommonShapes.h"
+#include "Collision/KzGJK.h"
+
+#include "Math/Geometry/KzShapeInstance.h"
+#include "Math/Geometry/Shapes/CommonShapes.h"
 
 #include "KismetTraceUtils.h"
 

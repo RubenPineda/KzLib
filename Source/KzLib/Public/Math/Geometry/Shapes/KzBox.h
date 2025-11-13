@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Geometry/KzShape.h"
+#include "Math/Geometry/KzShape.h"
 #include "KzBox.generated.h"
 
 USTRUCT(BlueprintType, meta = (DisplayName = "Box"))

@@ -2,7 +2,7 @@
 
 #include "Collision/KzGJK.h"
 #include "Collision/KzHitResult.h"
-#include "Geometry/KzShapeInstance.h"
+#include "Math/Geometry/KzShapeInstance.h"
 
 namespace Kz::GJK
 {

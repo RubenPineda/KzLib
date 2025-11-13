@@ -5,8 +5,8 @@
 #include "Collision/KzHitResult.h"
 #include "Collision/KzRaycast.h"
 #include "Collision/KzGJK.h"
-#include "Geometry/KzShapeInstance.h"
-#include "Geometry/Shapes/KzSphere.h"
+#include "Math/Geometry/KzShapeInstance.h"
+#include "Math/Geometry/Shapes/KzSphere.h"
 
 #include "DrawDebugHelpers.h"
 #include "KzDrawDebugHelpers.h"
