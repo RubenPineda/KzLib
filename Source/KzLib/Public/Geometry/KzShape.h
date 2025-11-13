@@ -53,4 +53,19 @@ public:
 
 	/** Renders this shape using the given primitive draw interface. */
 	virtual void DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const PURE_VIRTUAL(FKzShape::DrawSceneProxy, );
+
+	/** Returns true if this shape provides a fast analytical raycast. */
+	virtual bool ImplementsRaycast() const { return false; }
+
+	/**
+	 * Optional fast-path raycast against this shape.
+	 * Should only be called if ImplementsRaycast() returns true.
+	 */
+	virtual bool Raycast(struct FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+	{
+		return false; // base: no fast path
+	}
+
+	/** Returns the farthest point in the given direction, in local space. */
+	virtual FVector GetSupportPoint(const FVector& Direction) const PURE_VIRTUAL(FKzShape::GetSupportPoint, return {};);
 };

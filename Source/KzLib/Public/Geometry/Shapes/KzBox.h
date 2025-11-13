@@ -147,8 +147,19 @@ struct KZLIB_API FKzBox : public FKzShape
 		HalfSize *= Scale.GetAbs();
 	}
 
-	virtual void DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const override;
+	virtual FVector GetSupportPoint(const FVector& Direction) const override
+	{
+		return FVector(
+			Direction.X >= 0.0f ? HalfSize.X : -HalfSize.X,
+			Direction.Y >= 0.0f ? HalfSize.Y : -HalfSize.Y,
+			Direction.Z >= 0.0f ? HalfSize.Z : -HalfSize.Z
+		);
+	}
 
+	virtual bool ImplementsRaycast() const override { return true; }
+	virtual bool Raycast(struct FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const override;
+
+	virtual void DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const override;
 	virtual void DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const override;
 };
 

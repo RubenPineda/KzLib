@@ -170,8 +170,35 @@ struct KZLIB_API FKzCapsule : public FKzShape
 		HalfHeight *= FMath::Abs(Scale.Z);
 	}
 
-	virtual void DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const override;
+	virtual FVector GetSupportPoint(const FVector& Direction) const override
+	{
+		if (Direction.IsNearlyZero())
+		{
+			return FVector(0.0f, 0.0f, HalfHeight);
+		}
 
+		const float LenSqXY = Direction.SizeSquared2D();
+		const float HemisphereZ = (HalfHeight - Radius) * FMath::Sign(Direction.Z);
+
+		FVector SphereSupport;
+
+		if (LenSqXY < UE_KINDA_SMALL_NUMBER)
+		{
+			SphereSupport = FVector(0.0f, 0.0f, Radius * FMath::Sign(Direction.Z));
+		}
+		else
+		{
+			const float Scale = Radius * FMath::InvSqrt(LenSqXY);
+			SphereSupport = FVector(Direction.X * Scale, Direction.Y * Scale, Radius * FMath::Sign(Direction.Z));
+		}
+
+		return FVector(SphereSupport.X, SphereSupport.Y, SphereSupport.Z + HemisphereZ);
+	}
+
+	virtual bool ImplementsRaycast() const override { return true; }
+	virtual bool Raycast(struct FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const override;
+
+	virtual void DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const override;
 	virtual void DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const override;
 };
 

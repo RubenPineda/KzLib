@@ -1,8 +1,14 @@
 // Copyright 2025 kirzo
 
 #include "Geometry/Shapes/KzSphere.h"
+#include "Collision/KzRaycast.h"
 #include "DrawDebugHelpers.h"
 #include "Materials/MaterialRenderProxy.h"
+
+bool FKzSphere::Raycast(struct FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+{
+	return Kz::Raycast::Sphere(OutHit, Position, Radius, RayStart, RayDir, MaxDistance);
+}
 
 void FKzSphere::DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
 {

@@ -245,6 +245,27 @@ public:
 	{
 		return IsValid() ? Shape.Get().IntersectsSphere(Position, Orientation, SphereCenter, SphereRadius) : false;
 	}
+
+	/** Returns true if this shape provides a fast analytical raycast. */
+	FORCEINLINE bool ImplementsRaycast() const
+	{
+		return IsValid() ? Shape.Get().ImplementsRaycast() : false;
+	}
+
+	/**
+	 * Optional fast-path raycast against this shape.
+	 * Should only be called if ImplementsRaycast() returns true.
+	 */
+	FORCEINLINE bool Raycast(struct FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+	{
+		return IsValid() ? Shape.Get().Raycast(OutHit, Position, Orientation, RayStart, RayDir, MaxDistance) : false;
+	}
+
+	/** Returns the farthest point in the given direction, in local space. */
+	FORCEINLINE FVector GetSupportPoint(const FVector& Direction) const
+	{
+		return IsValid() ? Shape.Get().GetSupportPoint(Direction) : FVector::ZeroVector;
+	}
 };
 
 FORCEINLINE FKzShapeInstance operator+(float Inflation, const FKzShapeInstance& Shape)

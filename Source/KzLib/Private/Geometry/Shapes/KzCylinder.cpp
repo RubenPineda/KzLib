@@ -1,8 +1,14 @@
 // Copyright 2025 kirzo
 
 #include "Geometry/Shapes/KzCylinder.h"
+#include "Collision/KzRaycast.h"
 #include "DrawDebugHelpers.h"
 #include "Materials/MaterialRenderProxy.h"
+
+bool FKzCylinder::Raycast(FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+{
+	return Kz::Raycast::Cylinder(OutHit, Position, Orientation, Radius, HalfHeight, RayStart, RayDir, MaxDistance);
+}
 
 void FKzCylinder::DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
 {

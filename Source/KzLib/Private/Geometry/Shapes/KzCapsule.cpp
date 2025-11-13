@@ -1,8 +1,14 @@
 // Copyright 2025 kirzo
 
 #include "Geometry/Shapes/KzCapsule.h"
+#include "Collision/KzRaycast.h"
 #include "DrawDebugHelpers.h"
 #include "Materials/MaterialRenderProxy.h"
+
+bool FKzCapsule::Raycast(FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+{
+	return Kz::Raycast::Capsule(OutHit, Position, Orientation, Radius, HalfHeight, RayStart, RayDir, MaxDistance);
+}
 
 void FKzCapsule::DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
 {

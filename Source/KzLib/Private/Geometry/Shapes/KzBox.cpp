@@ -1,8 +1,14 @@
 // Copyright 2025 kirzo
 
 #include "Geometry/Shapes/KzBox.h"
+#include "Collision/KzRaycast.h"
 #include "DrawDebugHelpers.h"
 #include "Materials/MaterialRenderProxy.h"
+
+bool FKzBox::Raycast(FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+{
+	return Kz::Raycast::Box(OutHit, Position, Orientation, HalfSize, RayStart, RayDir, MaxDistance);
+}
 
 void FKzBox::DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
 {
