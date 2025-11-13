@@ -11,12 +11,10 @@
 #include "DrawDebugHelpers.h"
 #include "KzDrawDebugHelpers.h"
 
-UE_DISABLE_OPTIMIZATION
-
 namespace Kz
 {
-	template<typename ElementType, typename OctreeSemantics>
-	void TOctree<ElementType, OctreeSemantics>::Build(const CKzContainer auto& Container, float InLooseness, int32 InMaxDepth, int32 InMinElementsPerNode)
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
+	void TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::Build(const CKzContainer auto& Container, float InLooseness, int32 InMaxDepth, int32 InMinElementsPerNode)
 	{
 		SetLooseness(InLooseness);
 		SetMaxDepth(InMaxDepth);
@@ -32,7 +30,7 @@ namespace Kz
 		}
 
 		// Compute global bounds
-		FBox Global(EForceInit::ForceInit);
+		FBox Global(ForceInitToZero);
 		for (const ElementType& E : Container)
 		{
 			Global += OctreeSemantics::GetBoundingBox(E);
@@ -40,12 +38,9 @@ namespace Kz
 
 		// Make cubic + small pad for robustness
 		const FVector Center = Global.GetCenter();
-		const float MaxExtent = Global.GetExtent().GetMax();
-		const FVector HalfSize(MaxExtent);
-		const FVector Pad = HalfSize * 0.02f;
-
-		const FVector LooseHalf = HalfSize + Pad;
-		Root.Bounds = FBox(Center - LooseHalf, Center + LooseHalf);
+		const FVector HalfSize(Global.GetExtent().GetMax());
+		const FVector PadHalf = HalfSize * 1.02f;
+		Root.Bounds = FBox(Center - PadHalf, Center + PadHalf);
 		Root.Depth = 0;
 
 		// Fill root node
@@ -59,8 +54,8 @@ namespace Kz
 		BuildRecursive(Root);
 	}
 
-	template<typename ElementType, typename OctreeSemantics>
-	void TOctree<ElementType, OctreeSemantics>::BuildRecursive(FNode& N)
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
+	void TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::BuildRecursive(FNode& N)
 	{
 		// Stop if reached limits
 		if (N.Depth >= MaxDepth || N.Elements.Num() <= MinElementsPerNode)
@@ -98,15 +93,30 @@ namespace Kz
 
 		for (const ElementType& E : N.Elements)
 		{
-			const FBox B = OctreeSemantics::GetBoundingBox(E);
-			const FVector C = B.GetCenter();
+			const FBox ElemBounds = OctreeSemantics::GetBoundingBox(E);
 
-			int32 ChildIndex = 0;
-			if (C.X > ParentCenter.X) ChildIndex |= 1;
-			if (C.Y > ParentCenter.Y) ChildIndex |= 2;
-			if (C.Z > ParentCenter.Z) ChildIndex |= 4;
+			if constexpr (bAllowMultiNode)
+			{
+				// Insert into ALL child nodes that intersect the bounding box
+				for (int32 i = 0; i < 8; ++i)
+				{
+					if (N.Children[i].Bounds.Intersect(ElemBounds))
+					{
+						Buckets[i].Add(E);
+					}
+				}
+			}
+			else
+			{
+				// Classic octree behavior: single child chosen by element center
+				int32 ChildIndex = 0;
+				const FVector C = ElemBounds.GetCenter();
+				if (C.X > ParentCenter.X) ChildIndex |= 1;
+				if (C.Y > ParentCenter.Y) ChildIndex |= 2;
+				if (C.Z > ParentCenter.Z) ChildIndex |= 4;
 
-			Buckets[ChildIndex].Add(E);
+				Buckets[ChildIndex].Add(E);
+			}
 		}
 
 		// Clear the elements from the current node as they are now distributed to children
@@ -128,9 +138,9 @@ namespace Kz
 		}
 	}
 
-	template<typename ElementType, typename OctreeSemantics>
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
 	template<typename TValidator>
-	bool TOctree<ElementType, OctreeSemantics>::Raycast(ElementIdType& OutId, FKzHitResult& OutHit, const FVector& RayStart, const FVector& RayDir, float RayLength, TValidator&& Validator) const
+	bool TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::Raycast(ElementIdType& OutId, FKzHitResult& OutHit, const FVector& RayStart, const FVector& RayDir, float RayLength, TValidator&& Validator) const
 	{
 		const float SizeSq = RayDir.SizeSquared();
 		if (SizeSq < UE_SMALL_NUMBER)
@@ -154,14 +164,16 @@ namespace Kz
 		OutHit.bBlockingHit = false;
 		OutHit.Distance = RayLength;
 
+		TSet<ElementIdType> Visited;
+
 		// Begin the recursive traversal starting from the root node.
-		RaycastRecursive(Root, OutId, OutHit, RayStart, Dir, RayLength, Forward<TValidator>(Validator));
+		RaycastRecursive(Root, OutId, OutHit, RayStart, Dir, RayLength, Forward<TValidator>(Validator), Visited);
 		return OutHit.bBlockingHit;
 	}
 
-	template<typename ElementType, typename OctreeSemantics>
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
 	template<typename TValidator>
-	void TOctree<ElementType, OctreeSemantics>::RaycastRecursive(const FNode& N, ElementIdType& OutId, FKzHitResult& OutHit, const FVector& RayStart, const FVector& RayDir, float RayLength, TValidator&& Validator) const
+	void TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::RaycastRecursive(const FNode& N, ElementIdType& OutId, FKzHitResult& OutHit, const FVector& RayStart, const FVector& RayDir, float RayLength, TValidator&& Validator, TSet<ElementIdType>& Visited) const
 	{
 		// Broad-phase pruning
 		const float MaxDist = OutHit.bBlockingHit ? OutHit.Distance : RayLength;
@@ -176,6 +188,19 @@ namespace Kz
 			// Narrow phase: test all elements in this leaf node.
 			for (const ElementType& E : N.Elements)
 			{
+				const ElementIdType Id = OctreeSemantics::GetElementId(E);
+
+				// Prevent duplication
+				if constexpr (bAllowMultiNode)
+				{
+					if (Visited.Contains(Id))
+					{
+						continue;
+					}
+
+					Visited.Add(Id);
+				}
+
 				if (!OctreeSemantics::IsValid(E) || !Validator(E))
 				{
 					continue;
@@ -185,8 +210,6 @@ namespace Kz
 				const FVector ElemPos = OctreeSemantics::GetElementPosition(E);
 				const FQuat ElemRot = GetElementRotation(E);
 
-				DrawDebugShape(GEngine->GetCurrentPlayWorld(), ElemPos, ElemRot, ElemShape, FColor::Red);
-
 				const float MaxCheckLength = OutHit.bBlockingHit ? OutHit.Distance : RayLength;
 
 				const float PrevDist = OutHit.Distance;
@@ -195,7 +218,7 @@ namespace Kz
 				if (Kz::GJK::Raycast(HitCandidate, RayStart, RayDir, MaxCheckLength, ElemShape, ElemPos, ElemRot) && HitCandidate.Distance < PrevDist)
 				{
 					OutHit = HitCandidate;
-					OutId = OctreeSemantics::GetElementId(E);
+					OutId = Id;
 				}
 			}
 
@@ -239,21 +262,22 @@ namespace Kz
 				break;
 			}
 
-			RaycastRecursive(*ChildHit.Node, OutId, OutHit, RayStart, RayDir, RayLength, Forward<TValidator>(Validator));
+			RaycastRecursive(*ChildHit.Node, OutId, OutHit, RayStart, RayDir, RayLength, Forward<TValidator>(Validator), Visited);
 		}
 	}
 
-	template<typename ElementType, typename OctreeSemantics>
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
 	template<typename TValidator>
-	bool TOctree<ElementType, OctreeSemantics>::Query(TArray<ElementIdType>& OutResults, const FBox& Bounds, TValidator&& Validator) const
+	bool TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::Query(TArray<ElementIdType>& OutResults, const FBox& Bounds, TValidator&& Validator) const
 	{
-		QueryRecursive(Root, OutResults, Bounds, Forward<TValidator>(Validator));
+		TSet<ElementIdType> Visited;
+		QueryRecursive(Root, OutResults, Bounds, Forward<TValidator>(Validator), Visited);
 		return !OutResults.IsEmpty();
 	}
 
-	template<typename ElementType, typename OctreeSemantics>
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
 	template<typename TValidator>
-	void TOctree<ElementType, OctreeSemantics>::QueryRecursive(const FNode& N, TArray<ElementIdType>& OutResults, const FBox& Bounds, TValidator&& Validator) const
+	void TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::QueryRecursive(const FNode& N, TArray<ElementIdType>& OutResults, const FBox& Bounds, TValidator&& Validator, TSet<ElementIdType>& Visited) const
 	{
 		if (!N.Bounds.Intersect(Bounds)) return;
 
@@ -261,6 +285,19 @@ namespace Kz
 		{
 			for (const ElementType& E : N.Elements)
 			{
+				const ElementIdType Id = OctreeSemantics::GetElementId(E);
+
+				// Prevent duplication
+				if constexpr (bAllowMultiNode)
+				{
+					if (Visited.Contains(Id))
+					{
+						continue;
+					}
+
+					Visited.Add(Id);
+				}
+
 				if (!OctreeSemantics::IsValid(E) || !Validator(E))
 				{
 					continue;
@@ -276,14 +313,14 @@ namespace Kz
 		{
 			for (const FNode& Child : N.Children)
 			{
-				QueryRecursive(Child, OutResults, Bounds, Forward<TValidator>(Validator));
+				QueryRecursive(Child, OutResults, Bounds, Forward<TValidator>(Validator), Visited);
 			}
 		}
 	}
 
-	template<typename ElementType, typename OctreeSemantics>
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
 	template<typename TValidator>
-	bool TOctree<ElementType, OctreeSemantics>::Query(TArray<ElementIdType>& OutResults, const FKzShapeInstance& Shape, const FVector& ShapePosition, const FQuat& ShapeRotation, TValidator&& Validator) const
+	bool TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::Query(TArray<ElementIdType>& OutResults, const FKzShapeInstance& Shape, const FVector& ShapePosition, const FQuat& ShapeRotation, TValidator&& Validator) const
 	{
 		const FBox QueryAABB = Shape.GetBoundingBox(ShapePosition, ShapeRotation);
 		if (!QueryAABB.IsValid)
@@ -291,13 +328,14 @@ namespace Kz
 			return false;
 		}
 
-		QueryRecursive(Root, OutResults, Shape, ShapePosition, ShapeRotation, QueryAABB, Forward<TValidator>(Validator));
+		TSet<ElementIdType> Visited;
+		QueryRecursive(Root, OutResults, Shape, ShapePosition, ShapeRotation, QueryAABB, Forward<TValidator>(Validator), Visited);
 		return !OutResults.IsEmpty();
 	}
 
-	template<typename ElementType, typename OctreeSemantics>
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
 	template<typename TValidator>
-	void TOctree<ElementType, OctreeSemantics>::QueryRecursive(const FNode& N, TArray<ElementIdType>& OutResults, const FKzShapeInstance& Shape, const FVector& ShapePosition, const FQuat& ShapeRotation, const FBox& QueryAABB, TValidator&& Validator) const
+	void TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::QueryRecursive(const FNode& N, TArray<ElementIdType>& OutResults, const FKzShapeInstance& Shape, const FVector& ShapePosition, const FQuat& ShapeRotation, const FBox& QueryAABB, TValidator&& Validator, TSet<ElementIdType>& Visited) const
 	{
 		// Broad-phase: skip node if its bounds don't intersect the query AABB.
 		if (!N.Bounds.Intersect(QueryAABB))
@@ -309,6 +347,19 @@ namespace Kz
 		{
 			for (const ElementType& E : N.Elements)
 			{
+				const ElementIdType Id = OctreeSemantics::GetElementId(E);
+
+				// Prevent duplication
+				if constexpr (bAllowMultiNode)
+				{
+					if (Visited.Contains(Id))
+					{
+						continue;
+					}
+
+					Visited.Add(Id);
+				}
+
 				if (!OctreeSemantics::IsValid(E) || !Validator(E))
 				{
 					continue;
@@ -328,13 +379,13 @@ namespace Kz
 		{
 			for (const FNode& Child : N.Children)
 			{
-				QueryRecursive(Child, OutResults, Shape, ShapePosition, ShapeRotation, QueryAABB, Forward<TValidator>(Validator));
+				QueryRecursive(Child, OutResults, Shape, ShapePosition, ShapeRotation, QueryAABB, Forward<TValidator>(Validator), Visited);
 			}
 		}
 	}
 
-	template<typename ElementType, typename OctreeSemantics>
-	FKzShapeInstance TOctree<ElementType, OctreeSemantics>::GetElementShape(const ElementType& E)
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
+	FKzShapeInstance TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::GetElementShape(const ElementType& E)
 	{
 		if constexpr (requires { OctreeSemantics::GetShape(E); })
 		{
@@ -350,8 +401,8 @@ namespace Kz
 		}
 	}
 
-	template<typename ElementType, typename OctreeSemantics>
-	FQuat TOctree<ElementType, OctreeSemantics>::GetElementRotation(const ElementType& E)
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
+	FQuat TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::GetElementRotation(const ElementType& E)
 	{
 		if constexpr (requires { OctreeSemantics::GetElementRotation(E); })
 		{
@@ -363,8 +414,8 @@ namespace Kz
 		}
 	}
 
-	template<typename ElementType, typename OctreeSemantics>
-	void TOctree<ElementType, OctreeSemantics>::DebugDraw(const UWorld* World, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
+	void TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::DebugDraw(const UWorld* World, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
 	{
 		if (!World)
 		{
@@ -376,21 +427,19 @@ namespace Kz
 
 		while (Stack.Num() > 0)
 		{
-			const FNode* Node = Stack.Pop(EAllowShrinking::No);
+			const FNode& N = *Stack.Pop(EAllowShrinking::No);
 
 			// Compute extent, compensating for looseness only below the root
-			const FVector Extent = Node->Bounds.GetExtent() / (Node->Depth == 0 ? 1.0f : Looseness);
+			const FVector Extent = N.Bounds.GetExtent() / (N.Depth == 0 ? 1.0f : Looseness);
 
 			// Draw the node AABB
-			DrawDebugBox(World, Node->Bounds.GetCenter(), Extent, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
+			DrawDebugBox(World, N.Bounds.GetCenter(), Extent, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
 
 			// Continue traversing children
-			for (const FNode& Child : Node->Children)
+			for (const FNode& Child : N.Children)
 			{
 				Stack.Push(&Child);
 			}
 		}
 	}
 }
-
-UE_ENABLE_OPTIMIZATION

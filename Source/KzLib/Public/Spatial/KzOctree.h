@@ -11,7 +11,15 @@ struct FKzShapeInstance;
 
 namespace Kz
 {
-	template <typename ElementType, typename OctreeSemantics>
+	/**
+	 * Loose octree for broad-phase spatial queries.
+	 * Supports fast raycast/overlap traversal and configurable loose bounds.
+	 *
+	 * When bAllowMultiNode = true (default), elements may reside in multiple child
+	 * nodes if their bounds cross cell boundaries, ensuring robust queries without
+	 * relying on large looseness values.
+	 */
+	template <typename ElementType, typename OctreeSemantics, bool bAllowMultiNode = true>
 	class TOctree
 	{
 		using ElementIdType = typename OctreeSemantics::ElementIdType;
@@ -34,7 +42,7 @@ namespace Kz
 		 * Builds the octree from any iterable container (Array, THandleArray, etc.).
 		 * Uses semantics to extract bounding boxes and element ids.
 		 */
-		void Build(const CKzContainer auto& Container, float InLooseness = 1.05f, int32 InMaxDepth = 6, int32 InMinElementsPerNode = 4);
+		void Build(const CKzContainer auto& Container, float InLooseness = 1.0f, int32 InMaxDepth = 6, int32 InMinElementsPerNode = 4);
 
 		/**
 		 * Performs a raycast through the octree using broad-phase (node AABB) and narrow-phase
@@ -107,15 +115,15 @@ namespace Kz
 		 * Performs broad-phase node intersection and delegates narrow-phase tests to the validator.
 		 */
 		template<typename TValidator>
-		void RaycastRecursive(const FNode& N, ElementIdType& OutId, FKzHitResult& OutHit, const FVector& RayStart, const FVector& RayDir, float RayLength, TValidator&& Validator) const;
+		void RaycastRecursive(const FNode& N, ElementIdType& OutId, FKzHitResult& OutHit, const FVector& RayStart, const FVector& RayDir, float RayLength, TValidator&& Validator, TSet<ElementIdType>& Visited) const;
 
 		/** Recursive helper for Query(). */
 		template<typename TValidator>
-		void QueryRecursive(const FNode& N, TArray<ElementIdType>& OutResults, const FBox& Bounds, TValidator&& Validator) const;
+		void QueryRecursive(const FNode& N, TArray<ElementIdType>& OutResults, const FBox& Bounds, TValidator&& Validator, TSet<ElementIdType>& Visited) const;
 
 		/** Recursive helper for Query(). */
 		template<typename TValidator>
-		void QueryRecursive(const FNode& N, TArray<ElementIdType>& OutResults, const FKzShapeInstance& Shape, const FVector& ShapePosition, const FQuat& ShapeRotation, const FBox& QueryAABB, TValidator&& Validator) const;
+		void QueryRecursive(const FNode& N, TArray<ElementIdType>& OutResults, const FKzShapeInstance& Shape, const FVector& ShapePosition, const FQuat& ShapeRotation, const FBox& QueryAABB, TValidator&& Validator, TSet<ElementIdType>& Visited) const;
 
 		static FKzShapeInstance GetElementShape(const ElementType& E);
 		static FQuat GetElementRotation(const ElementType& E);
@@ -124,7 +132,7 @@ namespace Kz
 		FNode Root;
 		int32 MaxDepth = 6;
 		int32 MinElementsPerNode = 4;
-		float Looseness = 1.05f;
+		float Looseness = 1.0f;
 	};
 }
 
