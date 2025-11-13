@@ -9,7 +9,6 @@
 #include "Math/Geometry/Shapes/KzSphere.h"
 
 #include "DrawDebugHelpers.h"
-#include "KzDrawDebugHelpers.h"
 
 namespace Kz
 {

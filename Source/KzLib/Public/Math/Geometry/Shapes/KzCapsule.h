@@ -35,69 +35,13 @@ struct KZLIB_API FKzCapsule : public FKzShape
 		Radius = FMath::Clamp(Radius, 0.0f, HalfHeight);
 	}
 
-	virtual FBox GetBoundingBox(const FVector& Position, const FQuat& Orientation) const override
-	{
-		// Vector from center to one cap center (local +Z axis)
-		const FVector Axis = Orientation.GetAxisZ();
-		const FVector HalfSegment = Axis * (HalfHeight - Radius);
-
-		// Endpoints of the capsule spine
-		const FVector CapA = Position - HalfSegment;
-		const FVector CapB = Position + HalfSegment;
-
-		// Compute min/max bounds including the radius
-		const FVector Min = FVector::Min(CapA, CapB) - FVector(Radius);
-		const FVector Max = FVector::Max(CapA, CapB) + FVector(Radius);
-
-		return FBox(Min, Max);
-	}
+	virtual FBox GetBoundingBox(const FVector& Center, const FQuat& Rotation) const override;
+	virtual FVector GetClosestPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const override;
+	virtual bool IntersectsPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const override;
 
 	virtual FCollisionShape ToCollisionShape(float Inflation) const override
 	{
 		return FCollisionShape::MakeCapsule(Radius + Inflation, HalfHeight + Inflation);
-	}
-
-	virtual FVector GetClosestPoint(const FVector& Position, const FQuat& Orientation, const FVector& Point) const override
-	{
-		const FVector LocalPoint = Orientation.UnrotateVector(Point - Position);
-		if (FMath::Abs(LocalPoint.Z) <= HalfHeight - Radius)
-		{
-			return Position + Orientation.RotateVector(LocalPoint.GetClampedToMaxSize2D(Radius));
-		}
-		else
-		{
-			const FVector Offset = FVector::UpVector * FMath::Sign(LocalPoint.Z) * (HalfHeight - Radius);
-			return Position + Orientation.RotateVector((LocalPoint - Offset).GetClampedToMaxSize(Radius) + Offset);
-		}
-	}
-
-	virtual bool IntersectsPoint(const FVector& Position, const FQuat& Orientation, const FVector& Point) const override
-	{
-		const FVector LocalPoint = Orientation.UnrotateVector(Point - Position);
-
-		return
-			(FMath::Abs(LocalPoint.Z) <= HalfHeight - Radius &&
-			 LocalPoint.SizeSquared2D() <= FMath::Square(Radius)) ||
-			FVector::DistSquared(FVector::UpVector * (HalfHeight - Radius) * FMath::Sign(LocalPoint.Z), LocalPoint) <= FMath::Square(Radius);
-	}
-
-	virtual bool IntersectsSphere(const FVector& Position, const FQuat& Orientation, const FVector& SphereCenter, float SphereRadius) const override
-	{
-		const FVector LocalCenter = Orientation.UnrotateVector(SphereCenter - Position);
-
-		FVector ClosestPoint;
-		if (FMath::Abs(LocalCenter.Z) <= HalfHeight - Radius)
-		{
-			ClosestPoint = LocalCenter.GetClampedToMaxSize2D(Radius);
-		}
-		else
-		{
-			const FVector Offset = FVector::UpVector * FMath::Sign(LocalCenter.Z) * (HalfHeight - Radius);
-			ClosestPoint = (LocalCenter - Offset).GetClampedToMaxSize(Radius) + Offset;
-		}
-
-		const float DistSq = FVector::DistSquared(LocalCenter, ClosestPoint);
-		return DistSq <= FMath::Square(SphereRadius);
 	}
 
 	FORCEINLINE FKzCapsule operator+(float Inflation) const
@@ -196,9 +140,9 @@ struct KZLIB_API FKzCapsule : public FKzShape
 	}
 
 	virtual bool ImplementsRaycast() const override { return true; }
-	virtual bool Raycast(struct FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const override;
+	virtual bool Raycast(struct FKzHitResult& OutHit, const FVector& Center, const FQuat& Rotation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const override;
 
-	virtual void DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const override;
+	virtual void DrawDebug(const UWorld* InWorld, FVector const& Center, const FQuat& Rotation, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const override;
 	virtual void DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const override;
 };
 

@@ -1,19 +1,35 @@
 // Copyright 2025 kirzo
 
 #include "Math/Geometry/Shapes/KzCylinder.h"
+#include "Math/Geometry/KzGeometry.h"
 #include "Collision/KzRaycast.h"
 #include "DrawDebugHelpers.h"
 #include "Materials/MaterialRenderProxy.h"
 
-bool FKzCylinder::Raycast(FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+FBox FKzCylinder::GetBoundingBox(const FVector& Center, const FQuat& Rotation) const
 {
-	return Kz::Raycast::Cylinder(OutHit, Position, Orientation, Radius, HalfHeight, RayStart, RayDir, MaxDistance);
+	return Kz::Geom::CylinderBounds(Center, Rotation, Radius, HalfHeight);
 }
 
-void FKzCylinder::DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+FVector FKzCylinder::GetClosestPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const
 {
-	const FVector UpVector = Orientation.GetUpVector();
-	DrawDebugCylinder(InWorld, Position - UpVector * HalfHeight, Position + UpVector * HalfHeight, Radius, 12, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
+	return Kz::Geom::ClosestPointOnCylinder(Center, Rotation, Radius, HalfHeight, Point);
+}
+
+bool FKzCylinder::IntersectsPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const
+{
+	return Kz::Geom::CylinderIntersectsPoint(Center, Rotation, Radius, HalfHeight, Point);
+}
+
+bool FKzCylinder::Raycast(FKzHitResult& OutHit, const FVector& Center, const FQuat& Rotation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+{
+	return Kz::Raycast::Cylinder(OutHit, Center, Rotation, Radius, HalfHeight, RayStart, RayDir, MaxDistance);
+}
+
+void FKzCylinder::DrawDebug(const UWorld* InWorld, FVector const& Center, const FQuat& Rotation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+{
+	const FVector UpVector = Rotation.GetUpVector();
+	DrawDebugCylinder(InWorld, Center - UpVector * HalfHeight, Center + UpVector * HalfHeight, Radius, 12, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
 }
 
 void FKzCylinder::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const

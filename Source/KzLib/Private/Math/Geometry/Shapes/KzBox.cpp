@@ -1,18 +1,34 @@
 // Copyright 2025 kirzo
 
 #include "Math/Geometry/Shapes/KzBox.h"
+#include "Math/Geometry/KzGeometry.h"
 #include "Collision/KzRaycast.h"
 #include "DrawDebugHelpers.h"
 #include "Materials/MaterialRenderProxy.h"
 
-bool FKzBox::Raycast(FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+FBox FKzBox::GetBoundingBox(const FVector& Center, const FQuat& Rotation) const
 {
-	return Kz::Raycast::Box(OutHit, Position, Orientation, HalfSize, RayStart, RayDir, MaxDistance);
+	return Kz::Geom::BoxBounds(Center, Rotation, HalfSize);
 }
 
-void FKzBox::DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+FVector FKzBox::GetClosestPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const
 {
-	DrawDebugBox(InWorld, Position, HalfSize, Orientation, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
+	return Kz::Geom::ClosestPointOnBox(Center, Rotation, HalfSize, Point);
+}
+
+bool FKzBox::IntersectsPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const
+{
+	return Kz::Geom::BoxIntersectsPoint(Center, Rotation, HalfSize, Point);
+}
+
+bool FKzBox::Raycast(FKzHitResult& OutHit, const FVector& Center, const FQuat& Rotation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+{
+	return Kz::Raycast::Box(OutHit, Center, Rotation, HalfSize, RayStart, RayDir, MaxDistance);
+}
+
+void FKzBox::DrawDebug(const UWorld* InWorld, FVector const& Center, const FQuat& Rotation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+{
+	DrawDebugBox(InWorld, Center, HalfSize, Rotation, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
 }
 
 void FKzBox::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const

@@ -35,64 +35,13 @@ struct KZLIB_API FKzCylinder : public FKzShape
 		HalfHeight = FMath::Max(0.0f, HalfHeight);
 	}
 
-	virtual FBox GetBoundingBox(const FVector& Position, const FQuat& Orientation) const override
-	{
-		// Axis of the cylinder in world space
-		const FVector Axis = Orientation.GetAxisZ();
-
-		// Offset to top/bottom faces
-		const FVector HalfSegment = Axis * HalfHeight;
-
-		// Compute the projected world-space extents
-		const FVector AbsAxisZ(FMath::Abs(Axis.X), FMath::Abs(Axis.Y), FMath::Abs(Axis.Z));
-		const FVector RadialExtent = FVector(Radius) * FVector(1.0f - AbsAxisZ.X, 1.0f - AbsAxisZ.Y, 1.0f - AbsAxisZ.Z);
-
-		// Combine caps and radius
-		const FVector Top = Position + HalfSegment;
-		const FVector Bottom = Position - HalfSegment;
-
-		const FVector Min = FVector::Min(Top, Bottom) - FVector(Radius);
-		const FVector Max = FVector::Max(Top, Bottom) + FVector(Radius);
-
-		return FBox(Min, Max);
-	}
+	virtual FBox GetBoundingBox(const FVector& Center, const FQuat& Rotation) const override;
+	virtual FVector GetClosestPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const override;
+	virtual bool IntersectsPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const override;
 
 	virtual FCollisionShape ToCollisionShape(float Inflation) const override
 	{
 		return FCollisionShape::MakeBox(FVector(Radius, Radius, HalfHeight) + Inflation);
-	}
-
-	virtual FVector GetClosestPoint(const FVector& Position, const FQuat& Orientation, const FVector& Point) const override
-	{
-		const FVector LocalPoint = Orientation.UnrotateVector(Point - Position);
-
-		FVector ClosestPoint = LocalPoint.GetClampedToMaxSize2D(Radius);
-		if (FMath::Abs(LocalPoint.Z) > HalfHeight)
-		{
-			ClosestPoint.Z = FMath::Clamp(LocalPoint.Z, -HalfHeight, HalfHeight);
-		}
-
-		return Position + Orientation.RotateVector(ClosestPoint);
-	}
-
-	virtual bool IntersectsPoint(const FVector& Position, const FQuat& Orientation, const FVector& Point) const override
-	{
-		const FVector LocalPoint = Orientation.UnrotateVector(Point - Position);
-		return FMath::Abs(LocalPoint.Z) <= HalfHeight && LocalPoint.SizeSquared2D() <= FMath::Square(Radius);
-	}
-
-	virtual bool IntersectsSphere(const FVector& Position, const FQuat& Orientation, const FVector& SphereCenter, float SphereRadius) const override
-	{
-		const FVector LocalCenter = Orientation.UnrotateVector(SphereCenter - Position);
-
-		FVector ClosestPoint = LocalCenter.GetClampedToMaxSize2D(Radius);
-		if (FMath::Abs(LocalCenter.Z) > HalfHeight)
-		{
-			ClosestPoint.Z = FMath::Clamp(LocalCenter.Z, -HalfHeight, HalfHeight);
-		}
-
-		const float DistSq = FVector::DistSquared(LocalCenter, ClosestPoint);
-		return DistSq <= FMath::Square(SphereRadius);
 	}
 
 	FORCEINLINE FKzCylinder operator+(float Inflation) const
@@ -178,9 +127,9 @@ struct KZLIB_API FKzCylinder : public FKzShape
 	}
 
 	virtual bool ImplementsRaycast() const override { return true; }
-	virtual bool Raycast(struct FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const override;
+	virtual bool Raycast(struct FKzHitResult& OutHit, const FVector& Center, const FQuat& Rotation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const override;
 
-	virtual void DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const override;
+	virtual void DrawDebug(const UWorld* InWorld, FVector const& Center, const FQuat& Rotation, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const override;
 	virtual void DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const override;
 };
 

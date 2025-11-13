@@ -240,12 +240,6 @@ public:
 		return IsValid() ? Shape.Get().IntersectsPoint(Position, Orientation, Point) : false;
 	}
 
-	/** Tests intersection against a sphere. */
-	FORCEINLINE bool IntersectsSphere(const FVector& Position, const FQuat& Orientation, const FVector& SphereCenter, float SphereRadius) const
-	{
-		return IsValid() ? Shape.Get().IntersectsSphere(Position, Orientation, SphereCenter, SphereRadius) : false;
-	}
-
 	/** Returns true if this shape provides a fast analytical raycast. */
 	FORCEINLINE bool ImplementsRaycast() const
 	{

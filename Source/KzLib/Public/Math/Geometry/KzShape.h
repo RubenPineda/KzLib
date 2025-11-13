@@ -24,17 +24,14 @@ public:
 	/** Computes the world-space axis-aligned bounding box (AABB) for this shape. */
 	virtual FBox GetBoundingBox(const FVector& Position, const FQuat& Orientation) const PURE_VIRTUAL(FKzShape::GetBoundingBox, return {};);
 
-	/** Returns an engine-level FCollisionShape representing this Kz shape. */
-	virtual struct FCollisionShape ToCollisionShape(float Inflation = 0.0f) const PURE_VIRTUAL(FKzShape::ToCollisionShape, return {};);
-
 	/** Returns the closest point on (or inside) this shape to a given world-space point. */
 	virtual FVector GetClosestPoint(const FVector& Position, const FQuat& Orientation, const FVector& Point) const PURE_VIRTUAL(FKzShape::GetClosestPoint, return {};);
 
 	/** Checks whether a world-space point lies inside (or on the surface of) this shape. */
 	virtual bool IntersectsPoint(const FVector& Position, const FQuat& Orientation, const FVector& Point) const PURE_VIRTUAL(FKzShape::IntersectsPoint, return false;);
 
-	/** Tests intersection against a sphere. */
-	virtual bool IntersectsSphere(const FVector& Position, const FQuat& Orientation, const FVector& SphereCenter, float SphereRadius) const PURE_VIRTUAL(FKzShape::IntersectsSphere, return false;);
+	/** Returns an engine-level FCollisionShape representing this Kz shape. */
+	virtual struct FCollisionShape ToCollisionShape(float Inflation = 0.0f) const PURE_VIRTUAL(FKzShape::ToCollisionShape, return {};);
 
 	/** Uniformly inflates the shape by the specified amount. */
 	virtual void Inflate(float Inflation) PURE_VIRTUAL(FKzShape::Inflate, ;);

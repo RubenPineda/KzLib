@@ -31,33 +31,13 @@ struct KZLIB_API FKzSphere : public FKzShape
 		Radius = FMath::Max(0.0f, Radius);
 	}
 
-	virtual FBox GetBoundingBox(const FVector& Position, const FQuat& Orientation) const override
-	{
-		const FVector Extent(Radius);
-		return FBox(Position - Extent, Position + Extent);
-	}
+	virtual FBox GetBoundingBox(const FVector& Center, const FQuat& Rotation) const override;
+	virtual FVector GetClosestPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const override;
+	virtual bool IntersectsPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const override;
 
 	virtual FCollisionShape ToCollisionShape(float Inflation) const override
 	{
 		return FCollisionShape::MakeSphere(Radius + Inflation);
-	}
-
-	virtual FVector GetClosestPoint(const FVector& Position, const FQuat& Orientation, const FVector& Point) const override
-	{
-		const FVector LocalPoint = Point - Position;
-		const float VSq = LocalPoint.SizeSquared();
-		if (VSq <= FMath::Square(Radius)) return Point;
-		return Position + LocalPoint * (Radius * FMath::InvSqrt(VSq));
-	}
-
-	virtual bool IntersectsPoint(const FVector& Position, const FQuat& Orientation, const FVector& Point) const override
-	{
-		return FVector::DistSquared(Position, Point) <= FMath::Square(Radius);
-	}
-
-	virtual bool IntersectsSphere(const FVector& Position, const FQuat& Orientation, const FVector& SphereCenter, float SphereRadius) const override
-	{
-		return FVector::DistSquared(Position, SphereCenter) <= FMath::Square(Radius + SphereRadius);
 	}
 
 	FORCEINLINE FKzSphere operator+(float Inflation) const
@@ -132,9 +112,9 @@ struct KZLIB_API FKzSphere : public FKzShape
 	}
 
 	virtual bool ImplementsRaycast() const override { return true; }
-	virtual bool Raycast(struct FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const override;
+	virtual bool Raycast(struct FKzHitResult& OutHit, const FVector& Center, const FQuat& Rotation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const override;
 
-	virtual void DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const override;
+	virtual void DrawDebug(const UWorld* InWorld, FVector const& Center, const FQuat& Rotation, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const override;
 	virtual void DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const override;
 };
 

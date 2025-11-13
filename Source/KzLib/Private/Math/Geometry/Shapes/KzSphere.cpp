@@ -1,18 +1,34 @@
 // Copyright 2025 kirzo
 
 #include "Math/Geometry/Shapes/KzSphere.h"
+#include "Math/Geometry/KzGeometry.h"
 #include "Collision/KzRaycast.h"
 #include "DrawDebugHelpers.h"
 #include "Materials/MaterialRenderProxy.h"
 
-bool FKzSphere::Raycast(struct FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+FBox FKzSphere::GetBoundingBox(const FVector& Center, const FQuat& Rotation) const
 {
-	return Kz::Raycast::Sphere(OutHit, Position, Radius, RayStart, RayDir, MaxDistance);
+	return Kz::Geom::SphereBounds(Center, Radius);
 }
 
-void FKzSphere::DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+FVector FKzSphere::GetClosestPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const
 {
-	DrawDebugSphere(InWorld, Position, Radius, 12, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
+	return Kz::Geom::ClosestPointOnSphere(Center, Radius, Point);
+}
+
+bool FKzSphere::IntersectsPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const
+{
+	return Kz::Geom::SphereIntersectsPoint(Center, Radius, Point);
+}
+
+bool FKzSphere::Raycast(struct FKzHitResult& OutHit, const FVector& Center, const FQuat& Rotation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+{
+	return Kz::Raycast::Sphere(OutHit, Center, Radius, RayStart, RayDir, MaxDistance);
+}
+
+void FKzSphere::DrawDebug(const UWorld* InWorld, FVector const& Center, const FQuat& Rotation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+{
+	DrawDebugSphere(InWorld, Center, Radius, 12, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
 }
 
 void FKzSphere::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const

@@ -1,18 +1,34 @@
 // Copyright 2025 kirzo
 
 #include "Math/Geometry/Shapes/KzCapsule.h"
+#include "Math/Geometry/KzGeometry.h"
 #include "Collision/KzRaycast.h"
 #include "DrawDebugHelpers.h"
 #include "Materials/MaterialRenderProxy.h"
 
-bool FKzCapsule::Raycast(FKzHitResult& OutHit, const FVector& Position, const FQuat& Orientation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+FBox FKzCapsule::GetBoundingBox(const FVector& Center, const FQuat& Rotation) const
 {
-	return Kz::Raycast::Capsule(OutHit, Position, Orientation, Radius, HalfHeight, RayStart, RayDir, MaxDistance);
+	return Kz::Geom::CapsuleBounds(Center, Rotation, Radius, HalfHeight);
 }
 
-void FKzCapsule::DrawDebug(const UWorld* InWorld, FVector const& Position, const FQuat& Orientation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+FVector FKzCapsule::GetClosestPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const
 {
-	DrawDebugCapsule(InWorld, Position, HalfHeight, Radius, Orientation, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
+	return Kz::Geom::ClosestPointOnCapsule(Center, Rotation, Radius, HalfHeight, Point);
+}
+
+bool FKzCapsule::IntersectsPoint(const FVector& Center, const FQuat& Rotation, const FVector& Point) const
+{
+	return Kz::Geom::CapsuleIntersectsPoint(Center, Rotation, Radius, HalfHeight, Point);
+}
+
+bool FKzCapsule::Raycast(FKzHitResult& OutHit, const FVector& Center, const FQuat& Rotation, const FVector& RayStart, const FVector& RayDir, float MaxDistance) const
+{
+	return Kz::Raycast::Capsule(OutHit, Center, Rotation, Radius, HalfHeight, RayStart, RayDir, MaxDistance);
+}
+
+void FKzCapsule::DrawDebug(const UWorld* InWorld, FVector const& Center, const FQuat& Rotation, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+{
+	DrawDebugCapsule(InWorld, Center, HalfHeight, Radius, Rotation, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
 }
 
 void FKzCapsule::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const

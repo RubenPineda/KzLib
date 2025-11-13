@@ -2,12 +2,13 @@
 
 #include "Kismet/KzGeomLibrary.h"
 
+#include "Math/Geometry/KzGeometry.h"
+#include "Math/Geometry/KzShapeInstance.h"
+#include "Math/Geometry/Shapes/CommonShapes.h"
+
 #include "Collision/KzHitResult.h"
 #include "Collision/KzRaycast.h"
 #include "Collision/KzGJK.h"
-
-#include "Math/Geometry/KzShapeInstance.h"
-#include "Math/Geometry/Shapes/CommonShapes.h"
 
 #include "KismetTraceUtils.h"
 
@@ -127,7 +128,7 @@ bool UKzGeomLibrary::LineIntersectsCylinder(const UObject* WorldContextObject, F
 	return RayIntersectsCylinder(WorldContextObject, OutHit, Start, Dir, Len, Center, Radius, HalfHeight, Rotation, DrawDebugType, TraceColor, TraceHitColor, DrawTime);
 }
 
-// === Geometry functions ===
+// === Shape ===
 
 void UKzGeomLibrary::DrawDebugShape(const UObject* WorldContextObject, const FVector Position, const FRotator Rotation, const FKzShapeInstance& Shape, FLinearColor Color, float LifeTime, float Thickness)
 {
@@ -139,202 +140,105 @@ void UKzGeomLibrary::DrawDebugShape(const UObject* WorldContextObject, const FVe
 #endif
 }
 
-FBox UKzGeomLibrary::GetShapeAABB(const FVector& Position, const FQuat& Rotation, const FKzShapeInstance& Shape)
+FBox UKzGeomLibrary::GetShapeBounds(const FVector Position, const FRotator Rotation, const FKzShapeInstance& Shape)
 {
-	return Shape.GetBoundingBox(Position, Rotation);
+	return Shape.GetBoundingBox(Position, Rotation.Quaternion());
 }
 
-FBox UKzGeomLibrary::K2_GetShapeAABB(const FVector Position, const FRotator Rotation, const FKzShapeInstance& Shape)
+FVector UKzGeomLibrary::ClosestPointOnShape(const FVector Position, const FRotator Rotation, const FKzShapeInstance& Shape, const FVector Point)
 {
-	return GetShapeAABB(Position, Rotation.Quaternion(), Shape);
+	return Shape.GetClosestPoint(Position, Rotation.Quaternion(), Point);
 }
 
-FVector UKzGeomLibrary::ClosestPointOnShape(const FVector& Position, const FQuat& Rotation, const FKzShapeInstance& Shape, const FVector& Point)
+bool UKzGeomLibrary::ShapeIntersectsPoint(const FVector Position, const FRotator Rotation, const FKzShapeInstance& Shape, const FVector Point)
 {
-	return Shape.GetClosestPoint(Position, Rotation, Point);
+	return Shape.IntersectsPoint(Position, Rotation.Quaternion(), Point);
 }
 
-FVector UKzGeomLibrary::K2_ClosestPointOnShape(const FVector Position, const FRotator Rotation, const FKzShapeInstance& Shape, const FVector Point)
-{
-	return ClosestPointOnShape(Position, Rotation.Quaternion(), Shape, Point);
-}
-
-bool UKzGeomLibrary::ShapeIntersectsPoint(const FVector& Position, const FQuat& Rotation, const FKzShapeInstance& Shape, const FVector& Point)
-{
-	return Shape.IntersectsPoint(Position, Rotation, Point);
-}
-
-bool UKzGeomLibrary::K2_ShapeIntersectsPoint(const FVector Position, const FRotator Rotation, const FKzShapeInstance& Shape, const FVector Point)
-{
-	return ShapeIntersectsPoint(Position, Rotation.Quaternion(), Shape, Point);
-}
-
-bool UKzGeomLibrary::ShapeIntersectsSphere(const FVector& Position, const FQuat& Rotation, const FKzShapeInstance& Shape, const FVector& SphereCenter, float SphereRadius)
-{
-	return Shape.IntersectsSphere(Position, Rotation, SphereCenter, SphereRadius);
-}
-
-bool UKzGeomLibrary::K2_ShapeIntersectsSphere(const FVector Position, const FRotator Rotation, const FKzShapeInstance& Shape, const FVector SphereCenter, float SphereRadius)
-{
-	return ShapeIntersectsSphere(Position, Rotation.Quaternion(), Shape, SphereCenter, SphereRadius);
-}
+// === Sphere ===
 
 FKzShapeInstance UKzGeomLibrary::MakeSphere(const float Radius)
 {
 	return FKzShapeInstance::Make<FKzSphere>(Radius);
 }
 
-FBox UKzGeomLibrary::GetSphereAABB(const FVector Center, float Radius)
+FBox UKzGeomLibrary::GetSphereBounds(const FVector Center, float Radius)
 {
-	return FKzSphere(Radius).GetBoundingBox(Center, FQuat::Identity);
+	return Kz::Geom::SphereBounds(Center, Radius);
 }
 
 FVector UKzGeomLibrary::ClosestPointOnSphere(const FVector Center, float Radius, FVector Point)
 {
-	return FKzSphere(Radius).GetClosestPoint(Center, FQuat::Identity, Point);
+	return Kz::Geom::ClosestPointOnSphere(Center, Radius, Point);
 }
 
 bool UKzGeomLibrary::SphereIntersectsPoint(const FVector Center, float Radius, const FVector Point)
 {
-	return FKzSphere(Radius).IntersectsPoint(Center, FQuat::Identity, Point);
+	return Kz::Geom::SphereIntersectsPoint(Center, Radius, Point);
 }
 
-bool UKzGeomLibrary::SphereIntersectsSphere(const FVector CenterA, float RadiusA, const FVector CenterB, float RadiusB)
-{
-	return FKzSphere(RadiusA).IntersectsSphere(CenterA, FQuat::Identity, CenterB, RadiusB);
-}
+// === Box ===
 
 FKzShapeInstance UKzGeomLibrary::MakeBox(const FVector HalfSize)
 {
 	return FKzShapeInstance::Make<FKzBox>(HalfSize);
 }
 
-FBox UKzGeomLibrary::GetBoxAABB(const FVector& Center, const FVector& HalfSize, const FQuat& Rotation)
+FBox UKzGeomLibrary::GetBoxBounds(const FVector Center, const FVector HalfSize, const FRotator Rotation)
 {
-	return FKzBox(HalfSize).GetBoundingBox(Center, Rotation);
+	return Kz::Geom::BoxBounds(Center, Rotation.Quaternion(), HalfSize);
 }
 
-FBox UKzGeomLibrary::K2_GetBoxAABB(const FVector Center, const FVector HalfSize, const FRotator Rotation)
+FVector UKzGeomLibrary::ClosestPointOnBox(const FVector Center, const FVector HalfSize, const FRotator Rotation, const FVector Point)
 {
-	return GetBoxAABB(Center, HalfSize, Rotation.Quaternion());
+	return Kz::Geom::ClosestPointOnBox(Center, Rotation.Quaternion(), HalfSize, Point);
 }
 
-FVector UKzGeomLibrary::ClosestPointOnBox(const FVector& Center, const FVector& HalfSize, const FQuat& Rotation, const FVector& Point)
+bool UKzGeomLibrary::BoxIntersectsPoint(const FVector Center, const FVector HalfSize, const FRotator Rotation, const FVector Point)
 {
-	return FKzBox(HalfSize).GetClosestPoint(Center, FQuat::Identity, Point);
+	return Kz::Geom::BoxIntersectsPoint(Center, Rotation.Quaternion(), HalfSize, Point);
 }
 
-FVector UKzGeomLibrary::K2_ClosestPointOnBox(const FVector Center, const FVector HalfSize, const FRotator Rotation, const FVector Point)
-{
-	return ClosestPointOnBox(Center, HalfSize, Rotation.Quaternion(), Point);
-}
-
-bool UKzGeomLibrary::BoxIntersectsPoint(const FVector& Center, const FVector& HalfSize, const FQuat& Rotation, const FVector& Point)
-{
-	return FKzBox(HalfSize).IntersectsPoint(Center, Rotation, Point);
-}
-
-bool UKzGeomLibrary::K2_BoxIntersectsPoint(const FVector Center, const FVector HalfSize, const FRotator Rotation, const FVector Point)
-{
-	return BoxIntersectsPoint(Center, HalfSize, Rotation.Quaternion(), Point);
-}
-
-bool UKzGeomLibrary::BoxIntersectsSphere(const FVector& Center, const FVector& HalfSize, const FQuat& Rotation, const FVector& SphereCenter, float SphereRadius)
-{
-	return FKzBox(HalfSize).IntersectsSphere(Center, Rotation, SphereCenter, SphereRadius);
-}
-
-bool UKzGeomLibrary::K2_BoxIntersectsSphere(const FVector Center, const FVector HalfSize, const FRotator Rotation, const FVector SphereCenter, float SphereRadius)
-{
-	return BoxIntersectsSphere(Center, HalfSize, Rotation.Quaternion(), SphereCenter, SphereRadius);
-}
+// === Capsule ===
 
 FKzShapeInstance UKzGeomLibrary::MakeCapsule(const float Radius, const float HalfHeight)
 {
 	return FKzShapeInstance::Make<FKzCapsule>(Radius, HalfHeight);
 }
 
-FBox UKzGeomLibrary::GetCapsuleAABB(const FVector& Center, float Radius, float HalfHeight, const FQuat& Rotation)
+FBox UKzGeomLibrary::GetCapsuleBounds(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation)
 {
-	return FKzCapsule(Radius, HalfHeight).GetBoundingBox(Center, Rotation);
+	return Kz::Geom::CapsuleBounds(Center, Rotation.Quaternion(), Radius, HalfHeight);
 }
 
-FBox UKzGeomLibrary::K2_GetCapsuleAABB(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation)
+FVector UKzGeomLibrary::ClosestPointOnCapsule(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, const FVector Point)
 {
-	return GetCapsuleAABB(Center, Radius, HalfHeight, Rotation.Quaternion());
+	return Kz::Geom::ClosestPointOnCapsule(Center, Rotation.Quaternion(), Radius, HalfHeight, Point);
 }
 
-FVector UKzGeomLibrary::ClosestPointOnCapsule(const FVector& Center, float Radius, float HalfHeight, const FQuat& Rotation, const FVector& Point)
+bool UKzGeomLibrary::CapsuleIntersectsPoint(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, const FVector Point)
 {
-	return FKzCapsule(Radius, HalfHeight).GetClosestPoint(Center, FQuat::Identity, Point);
+	return Kz::Geom::CapsuleIntersectsPoint(Center, Rotation.Quaternion(), Radius, HalfHeight, Point);
 }
 
-FVector UKzGeomLibrary::K2_ClosestPointOnCapsule(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, const FVector Point)
-{
-	return ClosestPointOnCapsule(Center, Radius, HalfHeight, Rotation.Quaternion(), Point);
-}
-
-bool UKzGeomLibrary::CapsuleIntersectsPoint(const FVector& Center, float Radius, float HalfHeight, const FQuat& Rotation, const FVector& Point)
-{
-	return FKzCapsule(Radius, HalfHeight).IntersectsPoint(Center, Rotation, Point);
-}
-
-bool UKzGeomLibrary::K2_CapsuleIntersectsPoint(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, const FVector Point)
-{
-	return CapsuleIntersectsPoint(Center, Radius, HalfHeight, Rotation.Quaternion(), Point);
-}
-
-bool UKzGeomLibrary::CapsuleIntersectsSphere(const FVector& Center, float Radius, float HalfHeight, const FQuat& Rotation, const FVector& SphereCenter, float SphereRadius)
-{
-	return FKzCapsule(Radius, HalfHeight).IntersectsSphere(Center, Rotation, SphereCenter, SphereRadius);
-}
-
-bool UKzGeomLibrary::K2_CapsuleIntersectsSphere(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, const FVector SphereCenter, float SphereRadius)
-{
-	return CapsuleIntersectsSphere(Center, Radius, HalfHeight, Rotation.Quaternion(), SphereCenter, SphereRadius);
-}
+// === Cylinder ===
 
 FKzShapeInstance UKzGeomLibrary::MakeCylinder(const float Radius, const float HalfHeight)
 {
 	return FKzShapeInstance::Make<FKzCylinder>(Radius, HalfHeight);
 }
 
-FBox UKzGeomLibrary::GetCylinderAABB(const FVector& Center, float Radius, float HalfHeight, const FQuat& Rotation)
+FBox UKzGeomLibrary::GetCylinderBounds(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation)
 {
-	return FKzCylinder(Radius, HalfHeight).GetBoundingBox(Center, Rotation);
+	return Kz::Geom::CylinderBounds(Center, Rotation.Quaternion(), Radius, HalfHeight);
 }
 
-FBox UKzGeomLibrary::K2_GetCylinderAABB(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation)
+FVector UKzGeomLibrary::ClosestPointOnCylinder(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, const FVector Point)
 {
-	return GetCylinderAABB(Center, Radius, HalfHeight, Rotation.Quaternion());
+	return Kz::Geom::ClosestPointOnCylinder(Center, Rotation.Quaternion(), Radius, HalfHeight, Point);
 }
 
-FVector UKzGeomLibrary::ClosestPointOnCylinder(const FVector& Center, float Radius, float HalfHeight, const FQuat& Rotation, const FVector& Point)
+bool UKzGeomLibrary::CylinderIntersectsPoint(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, FVector Point)
 {
-	return FKzCylinder(Radius, HalfHeight).GetClosestPoint(Center, FQuat::Identity, Point);
-}
-
-FVector UKzGeomLibrary::K2_ClosestPointOnCylinder(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, const FVector Point)
-{
-	return ClosestPointOnCylinder(Center, Radius, HalfHeight, Rotation.Quaternion(), Point);
-}
-
-bool UKzGeomLibrary::CylinderIntersectsPoint(const FVector& Center, float Radius, float HalfHeight, const FQuat& Rotation, const FVector& Point)
-{
-	return FKzCylinder(Radius, HalfHeight).IntersectsPoint(Center, Rotation, Point);
-}
-
-bool UKzGeomLibrary::K2_CylinderIntersectsPoint(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, FVector Point)
-{
-	return CylinderIntersectsPoint(Center, Radius, HalfHeight, Rotation.Quaternion(), Point);
-}
-
-bool UKzGeomLibrary::CylinderIntersectsSphere(const FVector& Center, float Radius, float HalfHeight, const FQuat& Rotation, const FVector& SphereCenter, float SphereRadius)
-{
-	return FKzCylinder(Radius, HalfHeight).IntersectsSphere(Center, Rotation, SphereCenter, SphereRadius);
-}
-
-bool UKzGeomLibrary::K2_CylinderIntersectsSphere(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, const FVector SphereCenter, float SphereRadius)
-{
-	return CylinderIntersectsSphere(Center, Radius, HalfHeight, Rotation.Quaternion(), SphereCenter, SphereRadius);
+	return Kz::Geom::CylinderIntersectsPoint(Center, Rotation.Quaternion(), Radius, HalfHeight, Point);
 }
