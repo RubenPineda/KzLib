@@ -18,7 +18,11 @@ It’s designed to be **modular** and **dependency-free**, serving as a foundati
   (`FKzTransformSource`, `FKzVectorAccumulator`, `FKzQuatAccumulator`) for handling positions and orientations abstractly.  
 - **Safe handle containers**  
   (`THandleArray`) that eliminate dangling references while maintaining constant-time access.  
-  - `THandleArray` is designed for large dynamic collections where elements can be created or destroyed at any time, providing **O(1)** insertion, removal, and access through stable handles.  
+  - `THandleArray` is designed for large dynamic collections where elements can be created or destroyed at any time, providing **O(1)** insertion, removal, and access through stable handles.
+- **Kz::Geom** — A collection of lightweight geometric utilities for spheres, boxes, capsules, cylinders, and more. Provides bounds computation, closest-point queries, intersection tests, and distance helpers.
+- **Kz::Raycast** — Fast mathematical raycasts against primitive shapes. Completely independent from the Unreal Engine collision system and suitable for custom physics pipelines.
+- **Kz::GJK** — Modern implementation of the GJK algorithm used for convex collision detection, minimal distance queries, and penetration depth/normal extraction.
+- **Kz::TOctree** — A generic, high-performance templated octree supporting multi-node storage, dynamic depth/looseness control, and fast spatial queries. Integrates naturally with Kz::Raycast and Kz::Geom for broadphase+narrowphase workflows.
 - **Full Blueprint integration**, including automatic conversions and debug utilities.
 - **Open-source**, actively maintained, and steadily evolving with new tools and utilities.
 
@@ -31,6 +35,47 @@ It’s designed to be **modular** and **dependency-free**, serving as a foundati
 ```cpp
 FKzShapeInstance Capsule = FKzShapeInstance::Make<FKzCapsule>(Radius, HalfHeight);
 FKzShapeInstance Box = FKzShapeInstance::Make(FKzBox(HalfSize));
+```
+
+### Performing a capsuple intersects point test
+
+```cpp
+#include "Math/Geometry/KzGeometry.h
+
+bool bIntersects = Kz::Geom::CapsuleIntersectsPoint(Center, FQuat::Identity, Radius, HalfHeight, SomePoint);
+```
+
+### Raycasting
+
+```cpp
+#include "Collision/KzGeometry.h
+
+bool bHit = Kz::Raycast::Box(Hit, Center, HalfSize, RayStart, RayDir, MaxDist);
+```
+
+### Using GJK intersection test
+
+```cpp
+#include "Collision/KzGJK.h
+
+FKzShapeInstance ShapeA = ...;
+FKzShapeInstance ShapeB = ...;
+
+bool bIntersection = Kz::GJK::Intersect(ShapeA, PositionA, RotationA, ShapeB, PositionB, RotationB);
+```
+
+### Building and querying an octree
+
+```cpp
+#include "Spatial/KzOctree.h
+
+Kz::TOctree<FMyElement, FMySemantics> Octree;
+Octree.Build(MyElements);
+
+FKzShapeInstance Shape = ...;
+
+TArray<FMyElement> OutElements;
+bool bFoundSome = Octree.Query(OutElements, Shape, Position, Orientation);
 ```
 
 ### Using a transform source (in Blueprint or C++):
