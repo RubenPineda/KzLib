@@ -24,7 +24,7 @@ struct FKzQuatAccumulator
 	void Reset()
 	{
 		Accumulated = FQuat::Identity;
-		FirstQuat = FQuat::Identity;
+		Reference = FQuat::Identity;
 		TotalWeight = 0.0f;
 	}
 
@@ -70,6 +70,19 @@ struct FKzQuatAccumulator
 		}
 	}
 
+	/**
+	 * Sets the reference quaternion used for hemisphere alignment.
+	 *
+	 * This establishes the orientation against which all subsequently added
+	 * quaternions will be compared.
+	 */
+	void SetReference(const FQuat& InReference)
+	{
+		Reference = InReference;
+		Accumulated = InReference;
+		TotalWeight = 1.0f;
+	}
+
 	/** Adds a weighted quaternion to the running average. */
 	void AddWeighted(const FQuat& QuatIn, float Weight = 1.0f)
 	{
@@ -83,13 +96,13 @@ struct FKzQuatAccumulator
 		if (TotalWeight == 0.0f)
 		{
 			// First quaternion establishes the reference orientation.
-			FirstQuat = Quat;
+			Reference = Quat;
 			Accumulated = Quat * Weight;
 		}
 		else
 		{
 			// Ensure the quaternion lies in the same hemisphere as the reference.
-			if ((FirstQuat | Quat) < 0.0f)
+			if ((Reference | Quat) < 0.0f)
 			{
 				Quat = -Quat;
 			}
@@ -159,15 +172,15 @@ struct FKzQuatAccumulator
 
 	bool Identical(const FKzQuatAccumulator* Q, const uint32 PortFlags) const
 	{
-		return Accumulated.Identical(&Q->Accumulated, PortFlags ) && FirstQuat.Identical(&Q->FirstQuat, PortFlags) && TotalWeight == Q->TotalWeight;
+		return Accumulated.Identical(&Q->Accumulated, PortFlags ) && Reference.Identical(&Q->Reference, PortFlags) && TotalWeight == Q->TotalWeight;
 	}
 
 private:
 	/** Accumulated quaternion sum for averaging. */
 	FQuat Accumulated = FQuat::Identity;
 
-	/** First quaternion used as hemisphere reference. */
-	FQuat FirstQuat = FQuat::Identity;
+	/** Quaternion used as hemisphere reference. */
+	FQuat Reference = FQuat::Identity;
 
 	/** Total accumulated weight (or count, if unweighted). */
 	float TotalWeight = 0.0f;
