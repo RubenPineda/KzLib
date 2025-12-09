@@ -1,0 +1,233 @@
+#pragma once
+
+#ifndef PI
+#define PI 3.14159265359
+#endif
+
+// =========================================================
+// SINE
+// =========================================================
+
+float EaseInSine(float t)
+{
+    return 1.0 - cos((t * PI) / 2.0);
+}
+
+float EaseOutSine(float t)
+{
+    return sin((t * PI) / 2.0);
+}
+
+float EaseInOutSine(float t)
+{
+    return -(cos(PI * t) - 1.0) / 2.0;
+}
+
+// =========================================================
+// QUAD
+// =========================================================
+
+float EaseInQuad(float t)
+{
+    return t * t;
+}
+
+float EaseOutQuad(float t)
+{
+    return 1.0 - (1.0 - t) * (1.0 - t);
+}
+
+float EaseInOutQuad(float t)
+{
+    return t < 0.5 ? 2.0 * t * t : 1.0 - pow(-2.0 * t + 2.0, 2.0) / 2.0;
+}
+
+// =========================================================
+// CUBIC
+// =========================================================
+
+float EaseInCubic(float t)
+{
+    return t * t * t;
+}
+
+float EaseOutCubic(float t)
+{
+    return 1.0 - pow(1.0 - t, 3.0);
+}
+
+float EaseInOutCubic(float t)
+{
+    return t < 0.5 ? 4.0 * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0;
+}
+
+// =========================================================
+// QUART
+// =========================================================
+
+float EaseInQuart(float t)
+{
+    return t * t * t * t;
+}
+
+float EaseOutQuart(float t)
+{
+    return 1.0 - pow(1.0 - t, 4.0);
+}
+
+float EaseInOutQuart(float t)
+{
+    return t < 0.5 ? 8.0 * t * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 4.0) / 2.0;
+}
+
+// =========================================================
+// QUINT
+// =========================================================
+
+float EaseInQuint(float t)
+{
+    return t * t * t * t * t;
+}
+
+float EaseOutQuint(float t)
+{
+    return 1.0 - pow(1.0 - t, 5.0);
+}
+
+float EaseInOutQuint(float t)
+{
+    return t < 0.5 ? 16.0 * t * t * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 5.0) / 2.0;
+}
+
+// =========================================================
+// EXPO
+// =========================================================
+
+float EaseInExpo(float t)
+{
+    return t == 0.0 ? 0.0 : pow(2.0, 10.0 * t - 10.0);
+}
+
+float EaseOutExpo(float t)
+{
+    return t == 1.0 ? 1.0 : 1.0 - pow(2.0, -10.0 * t);
+}
+
+float EaseInOutExpo(float t)
+{
+    if (t == 0.0) return 0.0;
+    if (t == 1.0) return 1.0;
+    return t < 0.5 
+        ? pow(2.0, 20.0 * t - 10.0) / 2.0 
+        : (2.0 - pow(2.0, -20.0 * t + 10.0)) / 2.0;
+}
+
+// =========================================================
+// CIRC
+// =========================================================
+
+float EaseInCirc(float t)
+{
+    return 1.0 - sqrt(1.0 - pow(t, 2.0));
+}
+
+float EaseOutCirc(float t)
+{
+    return sqrt(1.0 - pow(t - 1.0, 2.0));
+}
+
+float EaseInOutCirc(float t)
+{
+    return t < 0.5
+        ? (1.0 - sqrt(1.0 - pow(2.0 * t, 2.0))) / 2.0
+        : (sqrt(1.0 - pow(-2.0 * t + 2.0, 2.0)) + 1.0) / 2.0;
+}
+
+// =========================================================
+// BACK
+// =========================================================
+
+float EaseInBack(float t)
+{
+    float c1 = 1.70158;
+    float c3 = c1 + 1.0;
+    return c3 * t * t * t - c1 * t * t;
+}
+
+float EaseOutBack(float t)
+{
+    float c1 = 1.70158;
+    float c3 = c1 + 1.0;
+    return 1.0 + c3 * pow(t - 1.0, 3.0) + c1 * pow(t - 1.0, 2.0);
+}
+
+float EaseInOutBack(float t)
+{
+    float c1 = 1.70158;
+    float c2 = c1 * 1.525;
+    return t < 0.5
+        ? (pow(2.0 * t, 2.0) * ((c2 + 1.0) * 2.0 * t - c2)) / 2.0
+        : (pow(2.0 * t - 2.0, 2.0) * ((c2 + 1.0) * (2.0 * t - 2.0) + c2) + 2.0) / 2.0;
+}
+
+// =========================================================
+// ELASTIC
+// =========================================================
+
+float EaseInElastic(float t)
+{
+    float c4 = (2.0 * PI) / 3.0;
+    if (t == 0.0) return 0.0;
+    if (t == 1.0) return 1.0;
+    return -pow(2.0, 10.0 * t - 10.0) * sin((t * 10.0 - 10.75) * c4);
+}
+
+float EaseOutElastic(float t)
+{
+    float c4 = (2.0 * PI) / 3.0;
+    if (t == 0.0) return 0.0;
+    if (t == 1.0) return 1.0;
+    return pow(2.0, -10.0 * t) * sin((t * 10.0 - 0.75) * c4) + 1.0;
+}
+
+float EaseInOutElastic(float t)
+{
+    float c5 = (2.0 * PI) / 4.5;
+    if (t == 0.0) return 0.0;
+    if (t == 1.0) return 1.0;
+    return t < 0.5
+        ? -(pow(2.0, 20.0 * t - 10.0) * sin((20.0 * t - 11.125) * c5)) / 2.0
+        : (pow(2.0, -20.0 * t + 10.0) * sin((20.0 * t - 11.125) * c5)) / 2.0 + 1.0;
+}
+
+// =========================================================
+// BOUNCE
+// =========================================================
+
+float EaseOutBounce(float t)
+{
+    float n1 = 7.5625;
+    float d1 = 2.75;
+
+    if (t < 1.0 / d1) {
+        return n1 * t * t;
+    } else if (t < 2.0 / d1) {
+        return n1 * (t -= 1.5 / d1) * t + 0.75;
+    } else if (t < 2.5 / d1) {
+        return n1 * (t -= 2.25 / d1) * t + 0.9375;
+    } else {
+        return n1 * (t -= 2.625 / d1) * t + 0.984375;
+    }
+}
+
+float EaseInBounce(float t)
+{
+    return 1.0 - EaseOutBounce(1.0 - t);
+}
+
+float EaseInOutBounce(float t)
+{
+    return t < 0.5
+        ? (1.0 - EaseOutBounce(1.0 - 2.0 * t)) / 2.0
+        : (1.0 + EaseOutBounce(2.0 * t - 1.0)) / 2.0;
+}
