@@ -79,6 +79,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Math|Quat")
 	static void ResetQuatAccumulator(UPARAM(ref) FKzQuatAccumulator& Accumulator);
 
+	/**
+	 * Converts a Quaternion into a Rotation Vector (Axis * Angle).
+	 * Ideally used for Angular Velocity targets or Torque calculations.
+	 * Uses the Quaternion Logarithm for optimized shortest-path calculation.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Quat", meta = (DisplayName = "To Rotation Vector (Quat)"))
+	static FVector QuatToRotationVector(const FQuat& Quat);
+
 	// === FRotator ===
 
 	/** Constructs a new quaternion accumulator from an array of rotators. */
@@ -104,6 +112,14 @@ public:
 	/** Converts an FKzQuatAccumulator to a Rotator */
 	UFUNCTION(BlueprintPure, Category = "Math|Rotator", meta = (DisplayName = "To Rotator (FKzQuatAccumulator)", CompactNodeTitle = "->", ScriptMethod = "Rotator", Keywords = "cast convert", BlueprintAutocast))
 	static FRotator Conv_QuatAccumulatorToRotator(const FKzQuatAccumulator& Accumulator);
+
+	/**
+	 * Converts a Rotator into a Rotation Vector (Axis * Angle).
+	 * Ideally used for Angular Velocity targets or Torque calculations.
+	 * Uses the Quaternion Logarithm for optimized shortest-path calculation.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Quat", meta = (DisplayName = "To Rotation Vector (FRotator)"))
+	static FVector RotatorToRotationVector(const FRotator& Rotation);
 };
 
 // Inline implementations

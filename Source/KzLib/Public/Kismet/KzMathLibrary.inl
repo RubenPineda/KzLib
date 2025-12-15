@@ -111,6 +111,26 @@ void UKzMathLibrary::ResetQuatAccumulator(FKzQuatAccumulator& Accumulator)
 	Accumulator.Reset();
 }
 
+KZ_MATH_FORCEINLINE
+FVector UKzMathLibrary::QuatToRotationVector(const FQuat& Quat)
+{
+	// This is vital because FQuat::Log assumes a unit quaternion.
+	FQuat Q = Quat.GetNormalized();
+
+	// Shortest Path "Hack"
+	// If W < 0, we are in the "far" hemisphere. We invert the quaternion.
+	// This ensures that the resulting angle is always the shortest path (<= 180 degrees)
+	if (Q.W < 0.f)
+	{
+		Q = -Q;
+	}
+
+	// FQuat::Log() returns a quaternion with W=0 and (X,Y,Z) = Axis * (Angle / 2).
+	// We only need the vector part multiplied by 2.
+	FQuat LogQ = Q.Log();
+	return 2.0f * FVector(LogQ.X, LogQ.Y, LogQ.Z);
+}
+
 // === FRotator ===
 
 KZ_MATH_FORCEINLINE
@@ -147,6 +167,12 @@ KZ_MATH_FORCEINLINE
 FRotator UKzMathLibrary::Conv_QuatAccumulatorToRotator(const FKzQuatAccumulator& Accumulator)
 {
 	return Accumulator.Get().Rotator();
+}
+
+KZ_MATH_FORCEINLINE
+FVector UKzMathLibrary::RotatorToRotationVector(const FRotator& Rotation)
+{
+	return QuatToRotationVector(Rotation.Quaternion());
 }
 
 #undef KZ_MATH_FORCEINLINE
