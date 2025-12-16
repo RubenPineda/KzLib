@@ -175,4 +175,28 @@ FVector UKzMathLibrary::RotatorToRotationVector(const FRotator& Rotation)
 	return QuatToRotationVector(Rotation.Quaternion());
 }
 
+KZ_MATH_FORCEINLINE
+FVector UKzMathLibrary::TransformLocation(const FVector ParentPosition, const FRotator ParentRotation, const FVector LocalPoint)
+{
+	return ParentPosition + ParentRotation.RotateVector(LocalPoint);
+}
+
+KZ_MATH_FORCEINLINE
+FVector UKzMathLibrary::InverseTransformLocation(const FVector ParentPosition, const FRotator ParentRotation, const FVector WorldPoint)
+{
+	return ParentRotation.UnrotateVector(WorldPoint - ParentPosition);
+}
+
+KZ_MATH_FORCEINLINE
+FVector UKzMathLibrary::TransformLocation_Quat(const FVector ParentPosition, const FQuat ParentRotation, const FVector LocalPoint)
+{
+	return ParentPosition + ParentRotation.RotateVector(LocalPoint);
+}
+
+KZ_MATH_FORCEINLINE
+FVector UKzMathLibrary::InverseTransformLocation_Quat(const FVector ParentPosition, const FQuat ParentRotation, const FVector WorldPoint)
+{
+	return ParentRotation.UnrotateVector(WorldPoint - ParentPosition);
+}
+
 #undef KZ_MATH_FORCEINLINE

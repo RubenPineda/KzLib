@@ -120,6 +120,36 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Math|Quat", meta = (DisplayName = "To Rotation Vector (FRotator)"))
 	static FVector RotatorToRotationVector(const FRotator& Rotation);
+
+	// === Transform ===
+
+	/**
+	 * Transforms a point from local space (relative to ParentPosition/ParentRotation) to world space.
+	 * Equivalent to: ParentTransform.TransformPosition(LocalPoint).
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Transform", meta = (Keywords = "location local to world relative"))
+	static FVector TransformLocation(const FVector ParentPosition, const FRotator ParentRotation, const FVector LocalPoint);
+
+	/**
+	 * Transforms a point from world space to local space (relative to ParentPosition/ParentRotation).
+	 * Equivalent to: ParentTransform.InverseTransformPosition(WorldPoint).
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Transform", meta = (Keywords = "location world to local inverse relative"))
+	static FVector InverseTransformLocation(const FVector ParentPosition, const FRotator ParentRotation, const FVector WorldPoint);
+
+	/**
+	 * Transforms a point from local space (relative to ParentPosition/ParentRotation) to world space.
+	 * Equivalent to: ParentTransform.TransformPosition(LocalPoint).
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Transform", meta = (Keywords = "location local to world relative", DisplayName = "Transform Location (Quat)"))
+	static FVector TransformLocation_Quat(const FVector ParentPosition, const FQuat ParentRotation, const FVector LocalPoint);
+
+	/**
+	 * Transforms a point from world space to local space (relative to ParentPosition/ParentRotation).
+	 * Equivalent to: ParentTransform.InverseTransformPosition(WorldPoint).
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Transform", meta = (Keywords = "location world to local inverse relative", DisplayName = "Inverse Transform Location (Quat)"))
+	static FVector InverseTransformLocation_Quat(const FVector ParentPosition, const FQuat ParentRotation, const FVector WorldPoint);
 };
 
 // Inline implementations
