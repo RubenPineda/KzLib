@@ -8,7 +8,7 @@ static UScriptStruct* StaticGetBaseStructureInternal(FName Name)
 {
 	static UPackage* Pkg = FindObjectChecked<UPackage>(nullptr, TEXT("/Script/KzLib"));
 
-	UScriptStruct* Result = (UScriptStruct*)StaticFindObjectFastInternal(UScriptStruct::StaticClass(), Pkg, Name, false, RF_NoFlags, EInternalObjectFlags::None);
+	UScriptStruct* Result = (UScriptStruct*)StaticFindObjectFastInternal(UScriptStruct::StaticClass(), Pkg, Name, EFindObjectFlags::None, RF_NoFlags, EInternalObjectFlags::None);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	if (!Result)
