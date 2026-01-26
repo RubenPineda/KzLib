@@ -231,3 +231,15 @@ float EaseInOutBounce(float t)
         ? (1.0 - EaseOutBounce(1.0 - 2.0 * t)) / 2.0
         : (1.0 + EaseOutBounce(2.0 * t - 1.0)) / 2.0;
 }
+
+
+float SCurve(float t, float r)
+{
+    t = saturate(t);
+    r = clamp(r, 0.0, 0.99);
+    float p = 1.0 / (1.0 - r);
+    float a = pow(t + t, p);
+    float b = 2.0 - pow(2.0 - (t + t), p);
+    float c = sign(t - 0.5) + 1.0;
+    return ((a * (2.0 - c)) + (b * c)) * 0.25;
+}

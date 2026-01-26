@@ -1,0 +1,64 @@
+#pragma once
+
+float4 LaplacianFilter(FMaterialPixelParameters Parameters, float KernelSize, float KernelRotation, float KernelSquashFactor)
+{
+	if (KernelSize < 2.0) return float4(0.0, 0.0, 0.0, 0.0);
+
+    float2 KernelUVs = GetDefaultSceneTextureUV(Parameters, 1);
+    float2 TexelSize = GetSceneTextureViewSize(1).zw;
+    
+    // Precompute rotation sine/cosine once
+    float2 RotationVector = float2(cos(KernelRotation), sin(KernelRotation));
+
+    float DepthDifferenceSum = 0.0;
+    float3 NormalDifferenceSum = float3(0.0, 0.0, 0.0);
+    float SampleCount = 0.0;
+
+    // Ideally, keep KernelSize small (e.g., 3 to 5) for performance.
+    KernelSize = floor(KernelSize);
+    float HalfKernelSize = floor(KernelSize / 2.0);
+    float HalfKernelSizeSq = HalfKernelSize * HalfKernelSize; 
+
+    // We sample the center pixel once to compare against neighbors
+    float CenterDepth = SceneTextureLookup(KernelUVs, 1, false).r;
+    float3 CenterNormal = SceneTextureLookup(KernelUVs, 8, false).rgb;
+
+    for (float y = -HalfKernelSize; y <= HalfKernelSize; y++)
+    {
+        for (float x = -HalfKernelSize; x <= HalfKernelSize; x++)
+        {
+            // Skip the center pixel loop
+            if (x == 0 && y == 0) continue;
+
+            // If Factor > 1.0, the kernel is compressed on the X-axis (relative to rotation).
+            // If Factor < 1.0, the kernel is stretched.
+            float2 RotatedPoint = float2(dot(RotationVector, float2(KernelSquashFactor * x, y)), dot(RotationVector, float2(y, -KernelSquashFactor * x)));
+
+            // Check if pixel is inside the kernel shape (Early Exit)
+            if (dot(RotatedPoint, RotatedPoint) > HalfKernelSizeSq)
+            {
+                continue;
+            }
+
+            SampleCount++;
+
+            float2 OffsetUVs = KernelUVs + TexelSize * float2(x, y);
+            float NeighborDepth = SceneTextureLookup(OffsetUVs, 1, false).r;
+            float3 NeighborNormal = SceneTextureLookup(OffsetUVs, 8, false).rgb;
+
+            // Calculate how different this neighbor is from the center
+            DepthDifferenceSum += (CenterDepth - NeighborDepth);
+            NormalDifferenceSum += (CenterNormal - NeighborNormal);
+        }   
+    }
+
+    // Normalize
+    if (SampleCount > 0.0)
+    {
+    	SampleCount = 1.0 / SampleCount;
+        DepthDifferenceSum *= SampleCount;
+        NormalDifferenceSum *= SampleCount;
+    }
+
+    return float4(NormalDifferenceSum, DepthDifferenceSum);
+}
