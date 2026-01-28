@@ -34,12 +34,24 @@ void UKzSensorComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	}
 }
 
+UKzShapeComponent* UKzSensorComponent::GetShapeForObject(UObject* LogicObject) const
+{
+	if (!LogicObject) return nullptr;
+
+	// Find the overlap info matching this object
+	const FKzOverlapResult* Found = CachedOverlaps.FindByPredicate([LogicObject](const FKzOverlapResult& Item)
+		{
+			return Item.LogicObject.Get() == LogicObject;
+		});
+
+	return Found ? Found->PhysicalShape.Get() : nullptr;
+}
+
 void UKzSensorComponent::PerformScan()
 {
 	TArray<FKzSensorCandidate> Candidates;
 
-	// 1. Fetch candidates from Registry (Preferred path)
-	// This ensures we know exactly which Logic Object corresponds to which Shape
+	// 1. Fetch candidates from Registry
 	if (AutoRegisterCategory && GetWorld())
 	{
 		if (UKzRegistrySubsystem* RegSub = GetWorld()->GetSubsystem<UKzRegistrySubsystem>())
@@ -80,9 +92,9 @@ void UKzSensorComponent::PerformScan()
 		}
 	}
 
-	TArray<UObject*> NewOverlaps;
+	TArray<FKzOverlapResult> NewOverlaps;
 
-	// 3. Iterate and Check GJK Intersection
+	// 2. Iterate and Check GJK Intersection
 	for (const FKzSensorCandidate& Candidate : Candidates)
 	{
 		UKzShapeComponent* TargetShape = Candidate.Shape;
@@ -100,21 +112,32 @@ void UKzSensorComponent::PerformScan()
 			if (HitObject)
 			{
 				// Avoid duplicates in the NEW list (e.g. if multiple shapes map to same object)
-				if (!NewOverlaps.Contains(HitObject))
+				bool bAlreadyAdded = NewOverlaps.ContainsByPredicate([HitObject](const FKzOverlapResult& Item)
+					{
+						return Item.LogicObject.Get() == HitObject;
+					});
+
+				if (!bAlreadyAdded)
 				{
-					NewOverlaps.Add(HitObject);
+					FKzOverlapResult NewResult;
+					NewResult.LogicObject = HitObject;
+					NewResult.PhysicalShape = TargetShape; // Capture the shape here!
+					NewOverlaps.Add(NewResult);
 				}
 			}
 		}
 	}
 
-	// 4. Process Begin Overlaps (Logic Object Level)
-	for (UObject* NewObj : NewOverlaps)
+	// 3. Process Begin Overlaps
+	for (const FKzOverlapResult& NewResult : NewOverlaps)
 	{
+		UObject* NewObj = NewResult.LogicObject.Get();
+		if (!NewObj) continue;
+
 		bool bIsNew = true;
-		for (const TWeakObjectPtr<UObject>& Existing : CachedLogicObjects)
+		for (const FKzOverlapResult& Existing : CachedOverlaps)
 		{
-			if (Existing.Get() == NewObj)
+			if (Existing.LogicObject.Get() == NewObj)
 			{
 				bIsNew = false;
 				break;
@@ -123,26 +146,30 @@ void UKzSensorComponent::PerformScan()
 
 		if (bIsNew)
 		{
-			CachedLogicObjects.Add(NewObj);
-			OnObjectBeginOverlap.Broadcast(NewObj);
+			OnObjectBeginOverlap.Broadcast(NewResult);
 		}
 	}
 
-	// 5. Process End Overlaps (Logic Object Level)
+	// 4. Process End Overlaps (Logic Object Level)
 	// Iterate backwards to safely remove
-	for (int32 i = CachedLogicObjects.Num() - 1; i >= 0; --i)
+	TArray<FKzOverlapResult> OldCache = CachedOverlaps;
+
+	// Replace cache with new frame data (updates PhysicalShape references if they changed positions/priorities)
+	CachedOverlaps = NewOverlaps;
+
+	for (const FKzOverlapResult& OldResult : OldCache)
 	{
-		UObject* OldObj = CachedLogicObjects[i].Get();
+		UObject* OldObj = OldResult.LogicObject.Get();
 
-		// If object is invalid (GC'd) or not in the new list, it ended overlap
-		if (!OldObj || !NewOverlaps.Contains(OldObj))
-		{
-			CachedLogicObjects.RemoveAtSwap(i);
-
-			if (OldObj) // Only broadcast if it was valid logic object
+		// Check if this object is present in the new list
+		bool bStillOverlapping = CachedOverlaps.ContainsByPredicate([OldObj](const FKzOverlapResult& Item)
 			{
-				OnObjectEndOverlap.Broadcast(OldObj);
-			}
+				return Item.LogicObject.Get() == OldObj;
+			});
+
+		if (!bStillOverlapping && OldObj)
+		{
+			OnObjectEndOverlap.Broadcast(OldResult);
 		}
 	}
 }

@@ -8,7 +8,24 @@
 
 class UKzRegistrySubsystem;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKzSensorObjectEvent, UObject*, DetectedObject);
+/** Struct to pair the logical object with the specific shape that triggered detection */
+USTRUCT(BlueprintType)
+struct FKzOverlapResult
+{
+	GENERATED_BODY()
+
+	/** The high-level object (Actor, Component, or custom UObject) */
+	UPROPERTY(BlueprintReadOnly, Category = "Kz Sensor")
+	TWeakObjectPtr<UObject> LogicObject;
+
+	/** The specific shape component that caused the overlap */
+	UPROPERTY(BlueprintReadOnly, Category = "Kz Sensor")
+	TWeakObjectPtr<UKzShapeComponent> PhysicalShape;
+
+	bool operator==(const UObject* Other) const { return LogicObject.Get() == Other; }
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKzSensorObjectEvent, const FKzOverlapResult&, OverlapInfo);
 
 /**
  * A sensor component that detects objects using KzLib's GJK intersection.
@@ -37,26 +54,29 @@ public:
 
 	// --- Events ---
 
-	/** Fired when a resolved logical object enters the sensor. */
+	/** Fired when an object enters the sensor. */
 	UPROPERTY(BlueprintAssignable, Category = "Kz Sensor")
 	FKzSensorObjectEvent OnObjectBeginOverlap;
 
-	/** Fired when a resolved logical object exits the sensor. */
+	/** Fired when an object exits the sensor. */
 	UPROPERTY(BlueprintAssignable, Category = "Kz Sensor")
 	FKzSensorObjectEvent OnObjectEndOverlap;
 
 	// --- Public API ---
 
-	/** Returns the list of currently overlapped logical objects cast to T. */
+	/**
+	 * Returns the list of currently overlapped logic objects cast to T.
+	 * Convenience wrapper if you don't care about the physical shape.
+	 */
 	template <typename T>
 	TArray<T*> GetOverlappingObjects() const
 	{
 		TArray<T*> Result;
-		Result.Reserve(CachedLogicObjects.Num());
+		Result.Reserve(CachedOverlaps.Num());
 
-		for (const TWeakObjectPtr<UObject>& WeakPtr : CachedLogicObjects)
+		for (const FKzOverlapResult& Overlap : CachedOverlaps)
 		{
-			if (UObject* Obj = WeakPtr.Get())
+			if (UObject* Obj = Overlap.LogicObject.Get())
 			{
 				if (T* Casted = Cast<T>(Obj))
 				{
@@ -67,11 +87,19 @@ public:
 		return Result;
 	}
 
+	/** Returns the full overlap info (Logic Object + Physical Shape). */
+	UFUNCTION(BlueprintCallable, Category = "Kz Sensor")
+	const TArray<FKzOverlapResult>& GetOverlapInfos() const { return CachedOverlaps; }
+
+	/** Helper to get the physical shape associated with a specific logical object. */
+	UFUNCTION(BlueprintCallable, Category = "Kz Sensor")
+	UKzShapeComponent* GetShapeForObject(UObject* LogicObject) const;
+
 private:
 	void PerformScan();
 
-	/** The cache of resolved logical objects. This is now the source of truth for events. */
-	TArray<TWeakObjectPtr<UObject>> CachedLogicObjects;
+	/** The cache of resolved logical objects and shapes. */
+	TArray<FKzOverlapResult> CachedOverlaps;
 
 	float TimeSinceLastScan = 0.0f;
 };
