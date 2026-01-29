@@ -65,7 +65,10 @@ void UKzSensorComponent::PerformScan()
 				// Case A: The logic object IS the shape
 				if (UKzShapeComponent* ShapeComp = Cast<UKzShapeComponent>(Obj))
 				{
-					Candidates.Add({ ShapeComp, Obj });
+					if (ShapeComp->IsActive())
+					{
+						Candidates.Add({ ShapeComp, Obj });
+					}
 				}
 				// Case B & C: The logic object is an Actor or a Component
 				else
@@ -88,7 +91,7 @@ void UKzSensorComponent::PerformScan()
 
 						for (UKzShapeComponent* FoundShape : Shapes)
 						{
-							if (FoundShape)
+							if (FoundShape && FoundShape->IsActive())
 							{
 								Candidates.Add({ FoundShape, Obj });
 							}
