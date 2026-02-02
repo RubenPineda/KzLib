@@ -41,21 +41,30 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 	{
 		UObject* Outer = OuterObjects[0];
 
-		if (Outer->HasAnyFlags(RF_ClassDefaultObject))
-		{
-			if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(Outer->GetClass()))
-			{
-				if (BPClass->IsChildOf(AActor::StaticClass()))
-				{
-					bIsActorContext = true;
-					bIsInstance = false; // It is a CDO
-				}
-			}
-		}
-		else if (Cast<AActor>(Outer))
+		// --- CASE A: The property is inside an ACTOR ---
+		if (AActor* Actor = Cast<AActor>(Outer))
 		{
 			bIsActorContext = true;
-			bIsInstance = true;
+
+			// It is an instance if it is NOT a Class Default Object (CDO) or Archetype
+			bIsInstance = !Actor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject);
+		}
+		// --- CASE B: The property is inside an ACTOR COMPONENT ---
+		else if (UActorComponent* Comp = Cast<UActorComponent>(Outer))
+		{
+			// If it's a component, it implies an Actor context eventually (Owner or BP Class)
+			bIsActorContext = true;
+
+			// Sub-Case B1: Component Instance (It has a valid Owner in the world)
+			if (Comp->GetOwner())
+			{
+				bIsInstance = true;
+			}
+			// Sub-Case B2: Component Template (Inside BP Editor, no owner yet)
+			else
+			{
+				bIsInstance = false;
+			}
 		}
 	}
 
@@ -63,8 +72,7 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 	TSharedPtr<SHorizontalBox> HBox = SNew(SHorizontalBox);
 
 	// Determine if we can use the Smart Pickers
-	bool bShowSmartPickers = bIsActorContext || bIsInstance;
-	if (bShowSmartPickers)
+	if (bIsActorContext)
 	{
 		// Component Picker
 		HBox->AddSlot()
@@ -153,15 +161,41 @@ AActor* FKzComponentSocketReferenceCustomization::GetTargetActor() const
 		}
 	}
 
-	// Fallback to Outer (Owner)
+	// Fallback to Property Context (Owner / CDO)
 	TArray<UObject*> OuterObjects;
 	StructPropertyHandle->GetOuterObjects(OuterObjects);
+
 	if (OuterObjects.Num() > 0)
 	{
-		// CDO/Instance
-		if (AActor* OuterActor = Cast<AActor>(OuterObjects[0]))
+		UObject* Outer = OuterObjects[0];
+
+		// Case A: Property is on the Actor itself (Instance or CDO)
+		if (AActor* OuterActor = Cast<AActor>(Outer))
 		{
 			return OuterActor;
+		}
+		// Case B: Property is on a Component
+		else if (UActorComponent* Comp = Cast<UActorComponent>(Outer))
+		{
+			// Sub-Case B1: Component Instance (Level) -> Return Owner
+			if (AActor* Owner = Comp->GetOwner())
+			{
+				return Owner;
+			}
+
+			// Sub-Case B2: Component Template (Blueprint Editor)
+			// The outer of a Component Template in the SCS is the BlueprintGeneratedClass
+			UObject* CompOuter = Comp->GetOuter();
+
+			if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(CompOuter))
+			{
+				return Cast<AActor>(BPClass->GetDefaultObject());
+			}
+			// Sometimes native component templates are parented to the CDO directly
+			else if (AActor* CDO = Cast<AActor>(CompOuter))
+			{
+				return CDO;
+			}
 		}
 	}
 
