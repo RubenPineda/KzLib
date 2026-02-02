@@ -8,6 +8,7 @@
 
 struct FKzHitResult;
 struct FKzTransformSource;
+struct FKzComponentSocketReference;
 
 // Whether to inline functions at all
 #define KZ_KISMET_SYSTEM_INLINE_ENABLED	(!UE_BUILD_DEBUG)
@@ -70,6 +71,10 @@ public:
 	/** Converts a SceneComponent to a KzTransformSource. */
 	UFUNCTION(BlueprintPure, Category = "KzLib|Conversions", meta = (DisplayName = "To KzTransformSource (SceneComponent)", CompactNodeTitle = "->", ScriptMethod = "KzTransformSource", Keywords = "cast convert transform source", BlueprintAutocast))
 	static FKzTransformSource Conv_SceneComponentToKzTransformSource(const USceneComponent* Component, const FName SocketName = NAME_None);
+
+	/** Converts a KzComponentSocketReference to a KzTransformSource. */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Conversions", meta = (DefaultToSelf = "Owner", DisplayName = "To KzTransformSource (KzComponentSocketReference)", CompactNodeTitle = "->", ScriptMethod = "KzTransformSource", Keywords = "cast convert transform source component socket", BlueprintAutocast))
+	static FKzTransformSource Conv_KzComponentSocketReferenceToKzTransformSource(const FKzComponentSocketReference& ComponentRef, const AActor* Owner);
 
 	// === Random ===
 
