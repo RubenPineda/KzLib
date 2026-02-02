@@ -2,7 +2,7 @@
 
 #include "Input/KzConeInputModifier.h"
 
-FVector UKzConeInputModifier::ModifyInput_Implementation(const FVector& OriginalInput, const FVector& CurrentInput)
+FVector UKzConeInputModifier::ModifyInput_Implementation(const FVector& OriginalInput, const FVector& CurrentInput) const
 {
 	// Validation: If no input or no valid delegate, pass through.
 	if (CurrentInput.IsNearlyZero() || !ReferenceVectorDelegate.IsBound())

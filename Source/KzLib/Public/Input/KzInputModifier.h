@@ -30,10 +30,10 @@ public:
 	 * @return The new input vector.
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "Input Modifier")
-	FVector ModifyInput(const FVector& OriginalInput, const FVector& CurrentInput);
+	FVector ModifyInput(const FVector& OriginalInput, const FVector& CurrentInput) const;
 
 private:
-	virtual FVector ModifyInput_Implementation(const FVector& OriginalInput, const FVector& CurrentInput)
+	virtual FVector ModifyInput_Implementation(const FVector& OriginalInput, const FVector& CurrentInput) const
 	{
 		return CurrentInput;
 	}

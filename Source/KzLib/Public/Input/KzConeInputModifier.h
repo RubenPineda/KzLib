@@ -36,5 +36,5 @@ public:
 	bool bPlanarConstraint = false;
 
 private:
-	virtual FVector ModifyInput_Implementation(const FVector& OriginalInput, const FVector& CurrentInput) override;
+	virtual FVector ModifyInput_Implementation(const FVector& OriginalInput, const FVector& CurrentInput) const override;
 };
