@@ -1,6 +1,6 @@
 // Copyright 2026 kirzo
 
-#include "Input/KzConeInputModifier.h"
+#include "Input/Modifiers/KzConeInputModifier.h"
 
 FVector UKzConeInputModifier::ModifyInput_Implementation(const FVector& OriginalInput, const FVector& CurrentInput) const
 {
