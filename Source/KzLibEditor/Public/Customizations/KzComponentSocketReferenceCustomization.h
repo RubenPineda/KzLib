@@ -41,12 +41,14 @@ private:
 	TSharedRef<SWidget> OnGetComponentsMenu();
 	void OnComponentSelected(FName InName);
 	FText GetCurrentComponentName() const;
+	EVisibility GetComponentWarningVisibility() const;
 
 	// -- Socket Picking --
 	TSharedRef<SWidget> OnGetSocketsMenu();
 	void OnSocketSelected(FName InName);
 	FText GetCurrentSocketName() const;
 	EVisibility GetSocketVisibility() const;
+	EVisibility GetSocketWarningVisibility() const;
 
 	// -- Helpers --
 	void BuildComponentList(TArray<FName>& OutNames);

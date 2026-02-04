@@ -175,7 +175,17 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 
 	if (bHasValidContext)
 	{
-		// Smart Pickers
+		HBox->AddSlot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(0.0f, 0.0f, 4.0f, 0.0f)
+			[
+				SNew(SImage)
+					.Image(FAppStyle::GetBrush("Icons.WarningWithColor"))
+					.Visibility(this, &FKzComponentSocketReferenceCustomization::GetComponentWarningVisibility)
+					.ToolTipText(LOCTEXT("CompNotFoundTooltip", "Component not found! It may have been renamed or deleted."))
+			];
+
 		HBox->AddSlot()
 			.FillWidth(1.0f)
 			.VAlign(VAlign_Center)
@@ -193,6 +203,17 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 
 		if (!bHideSocket)
 		{
+			HBox->AddSlot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+				[
+					SNew(SImage)
+						.Image(FAppStyle::GetBrush("Icons.WarningWithColor"))
+						.Visibility(this, &FKzComponentSocketReferenceCustomization::GetSocketWarningVisibility)
+						.ToolTipText(LOCTEXT("SocketNotFoundTooltip", "Socket not found on the selected component!"))
+				];
+
 			HBox->AddSlot()
 				.FillWidth(1.0f)
 				.VAlign(VAlign_Center)
@@ -484,6 +505,27 @@ FText FKzComponentSocketReferenceCustomization::GetCurrentComponentName() const
 	return LOCTEXT("SelectComponent", "Select Component...");
 }
 
+EVisibility FKzComponentSocketReferenceCustomization::GetComponentWarningVisibility() const
+{
+	FName CurrentName;
+	if (ComponentNameHandle->GetValue(CurrentName) != FPropertyAccess::Success)
+	{
+		return EVisibility::Collapsed;
+	}
+
+	// 1. If name is None, it means "Use Default/Root", which is always valid contextually.
+	if (CurrentName.IsNone())
+	{
+		return EVisibility::Collapsed;
+	}
+
+	// 2. Try to find the component
+	USceneComponent* FoundComp = FindComponentByName(CurrentName);
+
+	// 3. If not found, show warning
+	return FoundComp ? EVisibility::Collapsed : EVisibility::Visible;
+}
+
 USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(FName Name) const
 {
 	if (Name.IsNone()) return nullptr;
@@ -570,6 +612,42 @@ EVisibility FKzComponentSocketReferenceCustomization::GetSocketVisibility() cons
 	FName Val;
 	ComponentNameHandle->GetValue(Val);
 	return Val.IsNone() ? EVisibility::Collapsed : EVisibility::Visible;
+}
+
+EVisibility FKzComponentSocketReferenceCustomization::GetSocketWarningVisibility() const
+{
+	FName CurrentSocketName;
+	if (SocketNameHandle->GetValue(CurrentSocketName) != FPropertyAccess::Success)
+	{
+		return EVisibility::Collapsed;
+	}
+
+	// 1. If no socket specified (None), it uses the Component Pivot. Always valid.
+	if (CurrentSocketName.IsNone())
+	{
+		return EVisibility::Collapsed;
+	}
+
+	// 2. Resolve the component first
+	FName CurrentCompName;
+	ComponentNameHandle->GetValue(CurrentCompName);
+	USceneComponent* Comp = FindComponentByName(CurrentCompName);
+
+	// If component is missing, the Component Warning is already shown. 
+	// We hide the socket warning to reduce noise
+	if (!Comp)
+	{
+		return EVisibility::Collapsed;
+	}
+
+	// 3. Check if socket exists on the component
+	if (Comp->DoesSocketExist(CurrentSocketName))
+	{
+		return EVisibility::Collapsed;
+	}
+
+	// 4. Warning: Socket name not found on this component
+	return EVisibility::Visible;
 }
 
 #undef LOCTEXT_NAMESPACE
