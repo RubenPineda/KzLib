@@ -218,7 +218,44 @@ void FKzParamDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 	PinTypeAttribute = TAttribute<FEdGraphPinType>::Create(TAttribute<FEdGraphPinType>::FGetter::CreateSP(this, &FKzParamDefCustomization::GetTargetPinType));
 
 	const UKzParamDefSchema* Schema = GetDefault<UKzParamDefSchema>();
+	
+	// --- Metadata Checks ---
+	const bool bHideName = StructHandle->HasMetaData(TEXT("HideName"));
 	const bool bAllowArrays = !StructHandle->HasMetaData(TEXT("NoArrays"));
+
+	TSharedRef<SHorizontalBox> ValueBox = SNew(SHorizontalBox);
+
+	if (!bHideName)
+	{
+		ValueBox->AddSlot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(0, 0, 4, 0)
+			[
+				SNew(SBox)
+					.WidthOverride(120.0f)
+					[
+						NameHandle->CreatePropertyValueWidget()
+					]
+			];
+	}
+
+	ValueBox->AddSlot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			SNew(SBox)
+				.MaxDesiredHeight(20.0f)
+				[
+					SNew(SPinTypeSelector, FGetPinTypeTree::CreateUObject(Schema, &UKzParamDefSchema::GetKzParamTypeTree))
+						.Schema(Schema)
+						.TargetPinType(PinTypeAttribute)
+						.OnPinTypeChanged(this, &FKzParamDefCustomization::OnPinTypeChanged)
+						.TypeTreeFilter(ETypeTreeFilter::None)
+						.bAllowArrays(bAllowArrays)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+		];
 
 	HeaderRow
 		.NameContent()
@@ -227,38 +264,7 @@ void FKzParamDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 		]
 		.ValueContent()
 		[
-			SNew(SHorizontalBox)
-
-				// Name Input
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(0, 0, 4, 0)
-				[
-					SNew(SBox)
-						.WidthOverride(120.0f)
-						[
-							NameHandle->CreatePropertyValueWidget()
-						]
-				]
-
-				// Type Selector
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				[
-					SNew(SBox)
-						.MaxDesiredHeight(20.0f)
-						[
-							SNew(SPinTypeSelector, FGetPinTypeTree::CreateUObject(Schema, &UKzParamDefSchema::GetKzParamTypeTree))
-								.Schema(Schema)
-								.TargetPinType(PinTypeAttribute)
-								.OnPinTypeChanged(this, &FKzParamDefCustomization::OnPinTypeChanged)
-								.TypeTreeFilter(ETypeTreeFilter::None)
-								.bAllowArrays(bAllowArrays)
-								.Font(IDetailLayoutBuilder::GetDetailFont())
-						]
-				]
+			ValueBox
 		];
 }
 
