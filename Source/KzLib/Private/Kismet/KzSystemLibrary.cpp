@@ -19,6 +19,47 @@ void UKzSystemLibrary::BreakHitResult(const FKzHitResult& Hit, bool& bBlockingHi
 	TraceEnd = Hit.TraceEnd;
 }
 
+USceneComponent* UKzSystemLibrary::ResolveComponentByClass(const FKzComponentSocketReference& Reference, UObject* Context, TSubclassOf<USceneComponent> ComponentClass)
+{
+	if (!ComponentClass)
+	{
+		return nullptr;
+	}
+
+	USceneComponent* ResolvedComp = Reference.GetComponent(Context);
+
+	if (ResolvedComp && ResolvedComp->IsA(ComponentClass))
+	{
+		return ResolvedComp;
+	}
+
+	return nullptr;
+}
+
+bool UKzSystemLibrary::AttachActorToReference(const FKzComponentSocketReference& Reference, AActor* ActorToAttach, UObject* Context, EAttachmentRule AttachmentRules)
+{
+	if (!ActorToAttach)
+	{
+		return false;
+	}
+
+	USceneComponent* ParentComp = Reference.GetComponent(Context);
+	if (!ParentComp)
+	{
+		return false;
+	}
+
+	bool bAttached = ActorToAttach->AttachToComponent(ParentComp, FAttachmentTransformRules(AttachmentRules, false), Reference.SocketName);
+
+	if (bAttached)
+	{
+		ActorToAttach->SetActorRelativeLocation(Reference.RelativeLocation);
+		ActorToAttach->SetActorRelativeRotation(Reference.RelativeRotation);
+	}
+
+	return bAttached;
+}
+
 float UKzSystemLibrary::GaussianFloat()
 {
 	return Kz::Random::Gaussian();

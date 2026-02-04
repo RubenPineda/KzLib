@@ -75,9 +75,59 @@ public:
 	UFUNCTION(BlueprintPure, Category = "KzLib|Conversions", meta = (DisplayName = "To KzTransformSource (SceneComponent)", CompactNodeTitle = "->", ScriptMethod = "KzTransformSource", Keywords = "cast convert transform source", BlueprintAutocast))
 	static FKzTransformSource Conv_SceneComponentToKzTransformSource(const USceneComponent* Component, const FName SocketName = NAME_None);
 
-	/** Converts a KzComponentSocketReference to a KzTransformSource. */
-	UFUNCTION(BlueprintPure, Category = "KzLib|Conversions", meta = (DefaultToSelf = "Owner", DisplayName = "To KzTransformSource (KzComponentSocketReference)", CompactNodeTitle = "->", ScriptMethod = "KzTransformSource", Keywords = "cast convert transform source component socket", BlueprintAutocast))
-	static FKzTransformSource Conv_KzComponentSocketReferenceToKzTransformSource(const FKzComponentSocketReference& ComponentRef, const UObject* ContextObject);
+	// === FKzComponentSocketReference ===
+
+	/**
+	 * Resolves the reference to finding the actual Scene Component.
+	 * @param Reference The socket reference struct.
+	 * @param Context The object initiating the query.
+	 * @return The resolved component, or nullptr if not found.
+	 */
+	UFUNCTION(BlueprintPure, Category = "KzLib|SocketReference", meta = (DefaultToSelf = "Context"))
+	static USceneComponent* ResolveComponent(const FKzComponentSocketReference& Reference, UObject* Context);
+
+	/**
+	 * Resolves the reference and casts it to the specified Component Class.
+	 * @param Reference The socket reference struct.
+	 * @param Context The object initiating the query.
+	 * @param ComponentClass The class to filter/cast the result to.
+	 * @return The resolved component cast to the specific class, or nullptr if cast failed.
+	 */
+	UFUNCTION(BlueprintPure, Category = "KzLib|SocketReference", meta = (DefaultToSelf = "Context", DeterminesOutputType = "ComponentClass"))
+	static USceneComponent* ResolveComponentByClass(const FKzComponentSocketReference& Reference, UObject* Context, TSubclassOf<USceneComponent> ComponentClass);
+
+	/**
+	 * Calculates the World Transform of the referenced socket.
+	 * @param Reference The socket reference struct.
+	 * @param Context The object initiating the query.
+	 * @return The calculated world transform. Returns Identity if the component cannot be resolved.
+	 */
+	UFUNCTION(BlueprintPure, Category = "KzLib|SocketReference", meta = (DefaultToSelf = "Context", DisplayName = "Get World Transform"))
+	static FTransform GetSocketTransform(const FKzComponentSocketReference& Reference, UObject* Context);
+
+	/** Returns the World Location of the referenced socket (including offsets). */
+	UFUNCTION(BlueprintPure, Category = "KzLib|SocketReference", meta = (DefaultToSelf = "Context", DisplayName = "Get World Location"))
+	static FVector GetSocketLocation(const FKzComponentSocketReference& Reference, UObject* Context);
+
+	/**
+	 * Attaches an Actor to the component and socket defined by the reference.
+	 * @param Reference The target reference.
+	 * @param ActorToAttach The actor that will be attached.
+	 * @param Context The context to resolve the reference.
+	 * @param AttachmentRules How to handle transform rules during attachment.
+	 * @return True if attachment was successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "KzLib|SocketReference", meta = (DefaultToSelf = "Context"))
+	static bool AttachActorToReference(const FKzComponentSocketReference& Reference, AActor* ActorToAttach, UObject* Context, EAttachmentRule AttachmentRules = EAttachmentRule::SnapToTarget);
+
+	/**
+	 * Converts this static reference into a runtime Transform Source.
+	 * @param Reference The socket reference struct.
+	 * @param Context The object initiating the query.
+	 * @return A constructed TransformSource containing the resolved component pointer and socket data.
+	 */
+	UFUNCTION(BlueprintPure, Category = "KzLib|SocketReference", meta = (DefaultToSelf = "Context", DisplayName = "To Transform Source"))
+	static FKzTransformSource ToTransformSource(const FKzComponentSocketReference& Reference, UObject* Context);
 
 	// === Random ===
 

@@ -25,6 +25,29 @@ KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_RotatorToKzTrans
 KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_TransformToKzTransformSource(const FTransform& Source) { return FKzTransformSource(Source); }
 KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_ActorToKzTransformSource(const AActor* Actor) { return FKzTransformSource(Actor, FVector::ZeroVector); }
 KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_SceneComponentToKzTransformSource(const USceneComponent* Component, const FName SocketName) { return FKzTransformSource(Component, SocketName, FVector::ZeroVector); }
-KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_KzComponentSocketReferenceToKzTransformSource(const FKzComponentSocketReference& ComponentRef, const UObject* ContextObject) { return ComponentRef.ToTransformSource(ContextObject); }
+
+// === FKzComponentSocketReference ===
+
+KZ_SYSTEM_FORCEINLINE USceneComponent* UKzSystemLibrary::ResolveComponent(const FKzComponentSocketReference& Reference, UObject* Context)
+{
+	return Reference.GetComponent(Context);
+}
+
+KZ_SYSTEM_FORCEINLINE FTransform UKzSystemLibrary::GetSocketTransform(const FKzComponentSocketReference& Reference, UObject* Context)
+{
+	FTransform OutTransform;
+	Reference.GetSocketTransform(Context, OutTransform);
+	return OutTransform;
+}
+
+KZ_SYSTEM_FORCEINLINE FVector UKzSystemLibrary::GetSocketLocation(const FKzComponentSocketReference& Reference, UObject* Context)
+{
+	return GetSocketTransform(Reference, Context).GetLocation();
+}
+
+KZ_SYSTEM_FORCEINLINE FKzTransformSource UKzSystemLibrary::ToTransformSource(const FKzComponentSocketReference& Reference, UObject* Context)
+{
+	return Reference.ToTransformSource(Context);
+}
 
 #undef KZ_SYSTEM_FORCEINLINE
