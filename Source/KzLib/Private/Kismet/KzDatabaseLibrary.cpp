@@ -3,8 +3,6 @@
 #include "Kismet/KzDatabaseLibrary.h"
 #include "StructUtils/StructView.h"
 
-UE_DISABLE_OPTIMIZATION
-
 // --- Standard Functions ---
 
 bool UKzDatabaseLibrary::RemoveDatabaseItem(FKzDatabase& Database, FName ID)
@@ -293,5 +291,3 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execFindBestMatch)
 
 	*(bool*)RESULT_PARAM = bFound;
 }
-
-UE_ENABLE_OPTIMIZATION

@@ -3,8 +3,6 @@
 #include "Core/KzDatabase.h"
 #include "Algo/Count.h"
 
-UE_DISABLE_OPTIMIZATION
-
 bool FKzDatabaseQuery::Matches(const FGameplayTagContainer& Tags) const
 {
 	// Hard Requirements (ALL)
@@ -112,5 +110,3 @@ int32 FKzDatabase::QueryItems(const FKzDatabaseQuery& Query, TArray<const FKzDat
 
 	return OutItems.Num();
 }
-
-UE_ENABLE_OPTIMIZATION
