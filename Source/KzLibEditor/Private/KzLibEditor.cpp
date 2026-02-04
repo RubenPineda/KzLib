@@ -9,6 +9,9 @@
 #include "Core/KzParamDef.h"
 #include "Customizations/KzParamDefCustomization.h"
 
+#include "Core/KzDatabase.h"
+#include "Customizations/KzDatabaseCustomization.h"
+
 #include "Components/KzComponentSocketReference.h"
 #include "Customizations/KzComponentSocketReferenceCustomization.h"
 
@@ -71,6 +74,8 @@ void FKzLibEditorModule::RegisterAssetTools()
 void FKzLibEditorModule::RegisterLayouts()
 {
 	RegisterPropertyLayout<FKzParamDefCustomization>(FKzParamDef::StaticStruct()->GetFName());
+	RegisterPropertyLayout<FKzDatabaseCustomization>(FKzDatabase::StaticStruct()->GetFName());
+	RegisterPropertyLayout<FKzDatabaseItemCustomization>(FKzDatabaseItem::StaticStruct()->GetFName());
 	RegisterPropertyLayout<FKzComponentSocketReferenceCustomization>(FKzComponentSocketReference::StaticStruct()->GetFName());
 }
 

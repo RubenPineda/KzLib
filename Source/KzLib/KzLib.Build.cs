@@ -11,7 +11,8 @@ public class KzLib : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core"
+				"Core",
+				"GameplayTags"
 			}
 			);
 

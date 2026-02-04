@@ -34,7 +34,7 @@ struct KZLIB_API FKzParamDef
 
 	bool IsValid() const
 	{
-		return Name != NAME_None && ValueType != EPropertyBagPropertyType::None;
+		return ValueType != EPropertyBagPropertyType::None;
 	}
 
 	friend bool operator==(const FKzParamDef& Lhs, const FKzParamDef& Rhs)
