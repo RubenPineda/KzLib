@@ -117,18 +117,7 @@ struct KZLIB_API FKzDatabase
 	template <typename T>
 	void InitType()
 	{
-		// Unwrap Array (e.g., TArray<int32> -> int32)
-		using UnwrappedT = typename KzPropertyBag::Private::TUnwrapArray<T>::Type;
-		constexpr bool bIsArray = KzPropertyBag::Private::TUnwrapArray<T>::IsArray;
-
-		// Get Compile-Time Info from the Inner Type
-		// We use std::decay_t to remove const/volatile/references just in case
-		using Traits = KzPropertyBag::TPropertyBagType<std::decay_t<UnwrappedT>>;
-
-		Type.ValueType = Traits::Type;
-		Type.ValueTypeObject = Traits::GetObjectType();
-		Type.ContainerType = bIsArray ? EPropertyBagContainerType::Array : EPropertyBagContainerType::None;
-
+		Type.Init<T>();
 		Items.Empty();
 	}
 

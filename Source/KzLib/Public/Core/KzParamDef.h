@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "StructUtils/PropertyBag.h"
+#include "Core/KzPropertyBagHelpers.h"
 #include "KzParamDef.generated.h"
 
 /**
@@ -48,6 +49,57 @@ struct KZLIB_API FKzParamDef
 	friend bool operator!=(const FKzParamDef& Lhs, const FKzParamDef& Rhs)
 	{
 		return !(Lhs == Rhs);
+	}
+
+	/** Initializes ONLY the type information based on T. Does NOT change the Name.
+	 * Usage:
+	 * MyDef.Init<float>();
+	 * MyDef.Init<TArray<AActor*>>();
+	 */
+	template <typename T>
+	void Init()
+	{
+		// Detect Array Wrapper (TArray<T> -> T)
+		using UnwrappedT = typename KzPropertyBag::Private::TUnwrapArray<T>::Type;
+		constexpr bool bIsArray = KzPropertyBag::Private::TUnwrapArray<T>::IsArray;
+
+		// Get Traits from the inner type (std::decay_t to clean up const/references)
+		using Traits = KzPropertyBag::TPropertyBagType<std::decay_t<UnwrappedT>>;
+
+		// Fill Definition
+		ValueType = Traits::Type;
+		ValueTypeObject = Traits::GetObjectType();
+		ContainerType = bIsArray ? EPropertyBagContainerType::Array : EPropertyBagContainerType::None;
+	}
+
+	/** Initializes the type information based on T.
+	 * Usage:
+	 * MyDef.Init<float>("Health");
+	 * MyDef.Init<TArray<AActor*>>("Targets");
+	 */
+	template <typename T>
+	void Init(const FName InName)
+	{
+		Name = InName;
+		Init<T>();
+	}
+
+	/** Static helper to create a Definition in one line. */
+	template <typename T>
+	static FKzParamDef Make()
+	{
+		FKzParamDef Def;
+		Def.Init<T>();
+		return Def;
+	}
+
+	/** Static helper to create a Definition in one line. */
+	template <typename T>
+	static FKzParamDef Make(const FName InName)
+	{
+		FKzParamDef Def;
+		Def.Init<T>(InName);
+		return Def;
 	}
 
 	/** Name of the parameter. */
