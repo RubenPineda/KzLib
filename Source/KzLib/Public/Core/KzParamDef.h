@@ -51,6 +51,17 @@ struct KZLIB_API FKzParamDef
 		return !(Lhs == Rhs);
 	}
 
+	friend uint32 GetTypeHash(const FKzParamDef& Def)
+	{
+		uint32 Hash = GetTypeHash(Def.Name);
+
+		Hash = HashCombine(Hash, GetTypeHash(Def.ValueType));
+		Hash = HashCombine(Hash, GetTypeHash(Def.ValueTypeObject));
+		Hash = HashCombine(Hash, GetTypeHash(Def.ContainerType));
+
+		return Hash;
+	}
+
 	/** Initializes ONLY the type information based on T. Does NOT change the Name.
 	 * Usage:
 	 * MyDef.Init<float>();
