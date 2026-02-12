@@ -151,3 +151,26 @@ UActorComponent* UKzSystemLibrary::FindComponentInActorOrController(AActor* Targ
 
 	return nullptr;
 }
+
+UActorComponent* UKzSystemLibrary::FindComponentInControllerOrPawn(AController* Target, TSubclassOf<UActorComponent> ComponentClass)
+{
+	if (!Target || !ComponentClass)
+	{
+		return nullptr;
+	}
+
+	// Try Actor
+	UActorComponent* FoundComp = Target->FindComponentByClass(ComponentClass);
+	if (FoundComp)
+	{
+		return FoundComp;
+	}
+
+	// Try Pawn
+	if (APawn* Pawn = Target->GetPawn())
+	{
+		return Pawn->FindComponentByClass(ComponentClass);
+	}
+
+	return nullptr;
+}

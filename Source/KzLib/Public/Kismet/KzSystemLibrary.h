@@ -13,6 +13,8 @@ struct FKzHitResult;
 struct FKzTransformSource;
 struct FKzComponentSocketReference;
 
+class AController;
+
 // Whether to inline functions at all
 #define KZ_KISMET_SYSTEM_INLINE_ENABLED	(!UE_BUILD_DEBUG)
 
@@ -168,7 +170,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Components", meta = (DefaultToSelf = "Target", DeterminesOutputType = "ComponentClass"))
 	static UActorComponent* FindComponentInActorOrController(AActor* Target, TSubclassOf<UActorComponent> ComponentClass);
 
-	/** * Templated version for C++ usage.
+	/**
+	 * Tries to find a component of the specified class on the provided Controller.
+	 * If not found it tries to find the component on its Pawn.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "KzLib|Components", meta = (DefaultToSelf = "Target", DeterminesOutputType = "ComponentClass"))
+	static UActorComponent* FindComponentInControllerOrPawn(AController* Target, TSubclassOf<UActorComponent> ComponentClass);
+
+	/**
+	 * Templated version for C++ usage.
 	 * Searches in the Actor first, then in the Controller if the Actor is a Pawn.
 	 */
 	template <typename T>
@@ -193,6 +203,34 @@ public:
 			{
 				return Controller->FindComponentByClass<T>();
 			}
+		}
+
+		return nullptr;
+	}
+
+	/**
+	 * Templated version for C++ usage.
+	 * Searches in the Controller first, then in the Pawn.
+	 */
+	template <typename T>
+	static T* FindComponentInControllerOrPawn(AController* Target)
+	{
+		if (!Target)
+		{
+			return nullptr;
+		}
+
+		// Try Actor
+		T* FoundComp = Target->FindComponentByClass<T>();
+		if (FoundComp)
+		{
+			return FoundComp;
+		}
+
+		// Try Pawn
+		if (APawn* Pawn = Target->GetPawn())
+		{
+			return Pawn->FindComponentByClass<T>();
 		}
 
 		return nullptr;
