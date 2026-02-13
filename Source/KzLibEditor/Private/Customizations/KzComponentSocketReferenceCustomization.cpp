@@ -714,7 +714,12 @@ USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(F
 	// A. Try Property Lookup (Variable Name)
 	if (FObjectPropertyBase* Prop = FindFProperty<FObjectPropertyBase>(CurrentActor->GetClass(), LeafFName))
 	{
-		return Cast<USceneComponent>(Prop->GetObjectPropertyValue_InContainer(CurrentActor));
+		// Only return if the value is actually valid.
+		// In BP CDOs, this Property exists but the Value is often nullptr.
+		if (USceneComponent* Val = Cast<USceneComponent>(Prop->GetObjectPropertyValue_InContainer(CurrentActor)))
+		{
+			return Val;
+		}
 	}
 
 	// B. Fallback: Search Instance/Native
