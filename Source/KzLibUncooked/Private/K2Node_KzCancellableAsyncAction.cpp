@@ -7,8 +7,10 @@
 #include "BlueprintNodeSpawner.h"
 #include "EdGraphSchema_K2.h"
 #include "K2Node_CallFunction.h"
+#include "K2Node_IfThenElse.h"
 #include "KismetCompiler.h"
 #include "Kismet/BlueprintAsyncActionBase.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Styling/AppStyle.h"
 #include "Textures/SlateIcon.h"
 #include "UObject/UnrealType.h"
@@ -106,23 +108,41 @@ bool UK2Node_KzCancellableAsyncAction::HandleDelegates(
 	{
 		const UEdGraphSchema_K2* Schema = CompilerContext.GetSchema();
 
-		// Build the call node by hand (not CompilerContext.SpawnIntermediateNode / MovePinLinksToIntermediate)
+		// Build the nodes by hand (not CompilerContext.SpawnIntermediateNode / MovePinLinksToIntermediate)
 		// to avoid linking the KismetCompiler module from this UncookedOnly module.
-		UK2Node_CallFunction* CallCancelNode = NewObject<UK2Node_CallFunction>(SourceGraph);
-		CallCancelNode->SetFlags(RF_Transactional);
-		SourceGraph->AddNode(CallCancelNode);
-		CallCancelNode->CreateNewGuid();
-		CallCancelNode->PostPlacedNewNode();
-		CompilerContext.MessageLog.NotifyIntermediateObjectCreation(CallCancelNode, this);
+		auto AddIntermediateNode = [&CompilerContext, SourceGraph, this](UK2Node* Node)
+		{
+			Node->SetFlags(RF_Transactional);
+			SourceGraph->AddNode(Node);
+			Node->CreateNewGuid();
+			Node->PostPlacedNewNode();
+			CompilerContext.MessageLog.NotifyIntermediateObjectCreation(Node, this);
+		};
 
+		// Guard against a null / already-GC'd proxy — a Cancel pulsed long after the action resolved
+		// must be a silent no-op, not an "Accessed None" at runtime (same guard as the KzDialogue node).
+		UK2Node_CallFunction* IsValidNode = NewObject<UK2Node_CallFunction>(SourceGraph);
+		AddIntermediateNode(IsValidNode);
+		IsValidNode->FunctionReference.SetExternalMember(GET_FUNCTION_NAME_CHECKED(UKismetSystemLibrary, IsValid), UKismetSystemLibrary::StaticClass());
+		IsValidNode->AllocateDefaultPins();
+		bIsErrorFree &= Schema->TryCreateConnection(ProxyObjectPin, IsValidNode->FindPinChecked(TEXT("Object")));
+
+		UK2Node_IfThenElse* Branch = NewObject<UK2Node_IfThenElse>(SourceGraph);
+		AddIntermediateNode(Branch);
+		Branch->AllocateDefaultPins();
+		bIsErrorFree &= Schema->TryCreateConnection(IsValidNode->GetReturnValuePin(), Branch->GetConditionPin());
+
+		UK2Node_CallFunction* CallCancelNode = NewObject<UK2Node_CallFunction>(SourceGraph);
+		AddIntermediateNode(CallCancelNode);
 		CallCancelNode->SetFromFunction(CancelFunc);
 		CallCancelNode->AllocateDefaultPins();
 
-		// Self <- the proxy (compiler caches it in a local; null if the action never started).
+		// Self <- the proxy (compiler caches it in a local; null if the action never started or was collected).
 		UEdGraphPin* CallSelfPin = CallCancelNode->FindPinChecked(UEdGraphSchema_K2::PN_Self, EGPD_Input);
 		bIsErrorFree &= Schema->TryCreateConnection(ProxyObjectPin, CallSelfPin);
+		bIsErrorFree &= Schema->TryCreateConnection(Branch->GetThenPin(), CallCancelNode->GetExecPin());
 
-		bIsErrorFree &= Schema->MovePinLinks(*CancelInputPin, *CallCancelNode->GetExecPin(), /*bIsIntermediateMove=*/true).CanSafeConnect();
+		bIsErrorFree &= Schema->MovePinLinks(*CancelInputPin, *Branch->GetExecPin(), /*bIsIntermediateMove=*/true).CanSafeConnect();
 	}
 
 	return bIsErrorFree;
