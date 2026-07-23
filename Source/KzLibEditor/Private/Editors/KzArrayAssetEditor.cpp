@@ -632,6 +632,14 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 								{
 									Row->ShouldAutoExpand(true);
 
+									// GetDefaultWidgets is what invokes the type customization's
+									// CustomizeHeader (see FDetailPropertyRow::GetDefaultWidgets).
+									// Customizations commonly initialize state there that their
+									// CustomizeChildren depends on, so it must run even though the
+									// widgets themselves are discarded.
+									TSharedPtr<SWidget> UnusedNameWidget, UnusedValueWidget;
+									Row->GetDefaultWidgets(UnusedNameWidget, UnusedValueWidget);
+
 									Row->CustomWidget(/*bShowChildren=*/true)
 										.NameContent()
 										[
@@ -677,6 +685,10 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 
 		ElementDetailsView->SetObject(ExternalStructHost.Get());
 		ElementDetailsContainer->SetContent(ElementDetailsView.ToSharedRef());
+
+		// The host object is unchanged across reselects, so SetObject alone won't regenerate
+		// the rows. Force it, otherwise an undo leaves the panel showing pre-undo values.
+		ElementDetailsView->ForceRefresh();
 		return;
 	}
 
@@ -726,19 +738,21 @@ TArray<FKzValidationIssue> FKzArrayAssetEditor::HandleRunValidation()
 
 void FKzArrayAssetEditor::HandleValidationIssueActivated(const FKzValidationIssue& Issue)
 {
-	// Try each tab's customizer to resolve the GUID, falling back to index.
+	// Try each tab's customizer to resolve the GUID, falling back to index, to select the row.
+	bool bNavigated = false;
 	if (Issue.ContextId.IsValid())
 	{
 		for (const FTabRuntime& Runtime : TabRuntimes)
 		{
 			if (Runtime.StackWidget.IsValid() && Runtime.StackWidget->SelectByContextId(Issue.ContextId))
 			{
-				return;
+				bNavigated = true;
+				break;
 			}
 		}
 	}
 
-	if (Issue.ContextIndex != INDEX_NONE)
+	if (!bNavigated && Issue.ContextIndex != INDEX_NONE)
 	{
 		// Without further metadata we don't know which tab the index belongs to. Try
 		// each in order; the first stack with a matching index wins.
@@ -746,9 +760,15 @@ void FKzArrayAssetEditor::HandleValidationIssueActivated(const FKzValidationIssu
 		{
 			if (Runtime.StackWidget.IsValid() && Runtime.StackWidget->SelectByIndex(Issue.ContextIndex))
 			{
-				return;
+				break;
 			}
 		}
+	}
+
+	// Optional secondary navigation (e.g. selecting the offending sub-element inside the row).
+	if (Issue.OnActivate)
+	{
+		Issue.OnActivate();
 	}
 }
 
