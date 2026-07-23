@@ -21,3 +21,15 @@ enum class EKzTargetVerticalAlignment : uint8
 	/** Ignores the target's Z value and maintains the actor's current Z height. */
 	KeepStartZ          UMETA(DisplayName = "Maintain Start Z")
 };
+
+class AActor;
+
+namespace Kz
+{
+	/**
+	 * Resolves a target location's height according to the given vertical alignment: raw Z,
+	 * capsule-offset, downward floor trace, or keep-current-Z. Returns the raw location when
+	 * Avatar is null (capsule/collision data is unavailable).
+	 */
+	KZLIB_API FVector ResolveVerticalAlignedLocation(const AActor* Avatar, const FVector& TargetLocation, EKzTargetVerticalAlignment Alignment);
+}
