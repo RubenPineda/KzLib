@@ -113,7 +113,9 @@ void UKzSerializationLibrary::DeserializeObject(UObject* Object, UPARAM(ref) FKz
 				int32 PayloadSize;
 				Ar << PayloadSize;
 
-				// Check if the property still exists in the code (it might have been removed in a patch)
+				// Matched by name only. A removed property is handled below by skipping its payload. A property that
+				// kept its name but changed type will read the old bytes as the new type (garbage in that one field);
+				// the size-prefix framing keeps the rest of the stream intact regardless.
 				FProperty* ObjectProperty = FindFProperty<FProperty>(Object->GetClass(), *PropertyName);
 				if (ObjectProperty)
 				{
