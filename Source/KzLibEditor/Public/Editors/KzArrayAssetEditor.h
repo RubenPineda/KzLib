@@ -12,6 +12,8 @@ class IDetailsView;
 class SKzPropertyStack;
 class IPropertyHandle;
 class SBox;
+class FStructOnScope;
+struct FKzStackRow;
 
 /**
  * Generic asset editor that displays one or more array-backed tabs (each a
@@ -69,6 +71,12 @@ private:
 	FDelegateHandle StructEditChangedHandle;
 	TStrongObjectPtr<UKzExternalStructHost> ExternalStructHost;
 
+	/** True while the primary selected row is an immutable (read-only) injected row. Gates editing. */
+	bool bSelectedRowImmutable = false;
+
+	/** Subscription to asset-detail edits, used to rebuild injected (inherited) rows on change. */
+	FDelegateHandle AssetPropertyChangedHandle;
+
 	/** Per-tab runtime state. */
 	struct FTabRuntime
 	{
@@ -95,7 +103,18 @@ private:
 	TSharedRef<SDockTab> SpawnTab_Validation(const FSpawnTabArgs& Args);
 
 	void OnElementsSelected(const TArray<TSharedPtr<IPropertyHandle>>& SelectedHandles);
+	void OnImmutableRowSelected(TSharedPtr<FKzStackRow> Row);
 	void OnArrayStackTabActivated(TSharedRef<SDockTab> ActivatedTab, ETabActivationCause Cause, int32 TabIndex);
+
+	/** Rebuilds injected (inherited) rows when an asset-level property changes. */
+	void OnAssetPropertyChanged(const struct FPropertyChangedEvent& Event);
+
+	/** Renders the given struct instances in the shared Element Details panel. Write-back is bound
+	 *  only when WriteBackHandles is non-empty (editable selections); immutable snapshots pass none. */
+	void ShowStructsInPanel(const TArray<TSharedPtr<FStructOnScope>>& Structs, const TArray<TSharedPtr<IPropertyHandle>>& WriteBackHandles, const FText& HeaderLabel);
+
+	/** Element-details editing gate: disabled while an immutable row is selected. */
+	bool IsElementEditingEnabled() const { return !bSelectedRowImmutable; }
 
 	void OnRunValidation();
 	TArray<struct FKzValidationIssue> HandleRunValidation();

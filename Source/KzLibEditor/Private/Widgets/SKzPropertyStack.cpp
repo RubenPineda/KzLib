@@ -37,6 +37,7 @@ void SKzPropertyStack::Construct(const FArguments& InArgs, TSharedPtr<IPropertyH
 {
 	bAllowDuplicates = InArgs._bAllowDuplicates;
 	OnSelectionChangedDelegate = InArgs._OnSelectionChanged;
+	OnImmutableRowSelectedDelegate = InArgs._OnImmutableRowSelected;
 	ItemName = InArgs._ItemName.IsEmpty() ? INVTEXT("Element") : InArgs._ItemName;
 	ItemNamePlural = InArgs._ItemNamePlural.IsEmpty()
 		? FText::Format(INVTEXT("{0}s"), ItemName)
@@ -110,8 +111,8 @@ void SKzPropertyStack::Construct(const FArguments& InArgs, TSharedPtr<IPropertyH
 					SNew(SHorizontalBox)
 						+ SHorizontalBox::Slot().FillWidth(1.f).Padding(InArgs._ListPadding)
 						[
-							SAssignNew(ListViewWidget, SListView<TSharedPtr<IPropertyHandle>>)
-								.ListItemsSource(&FilteredHandles)
+							SAssignNew(ListViewWidget, SListView<TSharedPtr<FKzStackRow>>)
+								.ListItemsSource(&FilteredRows)
 								.OnGenerateRow(this, &SKzPropertyStack::OnGenerateRow)
 								.OnSelectionChanged(this, &SKzPropertyStack::OnListSelectionChanged)
 								.OnContextMenuOpening(this, &SKzPropertyStack::GetContextMenuContent)
@@ -164,22 +165,25 @@ void SKzPropertyStack::RestoreSelectionByIndices(const TArray<int32>& Indices)
 
 	ListViewWidget->ClearSelection();
 
-	TArray<TSharedPtr<IPropertyHandle>> Restored;
+	TArray<TSharedPtr<IPropertyHandle>> RestoredHandles;
+	TSharedPtr<FKzStackRow> LastRow;
 	for (int32 Index : Indices)
 	{
-		if (AllHandles.IsValidIndex(Index))
+		// Editable rows are built first, in array order, so AllRows[Index] is the array element.
+		if (AllRows.IsValidIndex(Index) && AllRows[Index].IsValid() && AllRows[Index]->IsEditable())
 		{
-			ListViewWidget->SetItemSelection(AllHandles[Index], true, ESelectInfo::Direct);
-			Restored.Add(AllHandles[Index]);
+			ListViewWidget->SetItemSelection(AllRows[Index], true, ESelectInfo::Direct);
+			RestoredHandles.Add(AllRows[Index]->Handle);
+			LastRow = AllRows[Index];
 		}
 	}
 
-	if (Restored.Num() > 0)
+	if (LastRow.IsValid())
 	{
-		ListViewWidget->RequestScrollIntoView(Restored.Last());
+		ListViewWidget->RequestScrollIntoView(LastRow);
 	}
 
-	OnSelectionChangedDelegate.ExecuteIfBound(Restored);
+	OnSelectionChangedDelegate.ExecuteIfBound(RestoredHandles);
 }
 
 // =======================================================================================
@@ -188,15 +192,25 @@ void SKzPropertyStack::RestoreSelectionByIndices(const TArray<int32>& Indices)
 
 void SKzPropertyStack::RefreshStack()
 {
-	AllHandles.Empty();
+	AllRows.Empty();
 
+	// 1. Editable rows: one per array element, in array order (first).
 	if (ArrayHandle.IsValid())
 	{
 		uint32 NumElements = 0;
 		ArrayHandle->GetNumElements(NumElements);
 		for (uint32 i = 0; i < NumElements; ++i)
 		{
-			AllHandles.Add(ArrayHandle->GetElement(i));
+			AllRows.Add(MakeShared<FKzStackRow>(ArrayHandle->GetElement(i)));
+		}
+	}
+
+	// 2. Injected read-only rows (e.g. inherited parent entries), appended after.
+	if (ImmutableRowsProvider.IsBound())
+	{
+		for (const TSharedPtr<FKzStackRow>& Row : ImmutableRowsProvider.Execute())
+		{
+			if (Row.IsValid()) { AllRows.Add(Row); }
 		}
 	}
 
@@ -205,24 +219,44 @@ void SKzPropertyStack::RefreshStack()
 
 void SKzPropertyStack::GenerateFilteredList()
 {
-	FilteredHandles.Empty();
+	FilteredRows.Empty();
 	const bool bHasFilterText = !TextFilter->GetFilterText().IsEmpty();
 
-	for (TSharedPtr<IPropertyHandle> Handle : AllHandles)
+	for (const TSharedPtr<FKzStackRow>& Row : AllRows)
 	{
-		if (!Handle.IsValid()) { continue; }
+		if (!Row.IsValid()) { continue; }
+		if (!Row->IsEditable() && !Row->Snapshot.IsValid()) { continue; } // invalid injected row
 
 		bool bPassesFilter = true;
 		if (bHasFilterText)
 		{
-			const FString ItemNameStr = GetHandleDisplayName(Handle);
-			bPassesFilter = TextFilter->TestTextFilter(FBasicStringFilterExpressionContext(ItemNameStr));
+			const FString RowNameStr = GetRowDisplayName(Row);
+			bPassesFilter = TextFilter->TestTextFilter(FBasicStringFilterExpressionContext(RowNameStr));
 		}
 
-		if (bPassesFilter) { FilteredHandles.Add(Handle); }
+		if (bPassesFilter) { FilteredRows.Add(Row); }
+	}
+
+	// Mark the first visible row of each named group so OnGenerateRow can draw the header.
+	FText CurrentGroup;
+	for (const TSharedPtr<FKzStackRow>& Row : FilteredRows)
+	{
+		Row->bRenderGroupHeader = false;
+		if (!Row->GroupName.IsEmpty() && !Row->GroupName.EqualTo(CurrentGroup))
+		{
+			Row->bRenderGroupHeader = true;
+			CurrentGroup = Row->GroupName;
+		}
 	}
 
 	if (ListViewWidget.IsValid()) { ListViewWidget->RequestListRefresh(); }
+}
+
+FString SKzPropertyStack::GetRowDisplayName(TSharedPtr<FKzStackRow> Row) const
+{
+	if (!Row.IsValid()) { return TEXT("Invalid"); }
+	if (Row->IsEditable()) { return GetHandleDisplayName(Row->Handle); }
+	return Row->DisplayLabel.IsEmpty() ? TEXT("Inherited") : Row->DisplayLabel.ToString();
 }
 
 FString SKzPropertyStack::GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handle) const
@@ -371,7 +405,6 @@ void SKzPropertyStack::SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyH
 				SNew(SPositiveActionButton)
 				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
 				.Text(FText::Format(INVTEXT("Add {0}"), ItemName))
-				//.OnComboBoxOpened(this, &SKzClassCombo::OnMenuOpened)
 				.OnGetMenuContent_Lambda([this]() -> TSharedRef<SWidget>
 					{
 						if (RowCustomizer.IsValid())
@@ -412,14 +445,38 @@ void SKzPropertyStack::SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyH
 	RefreshStack();
 }
 
+void SKzPropertyStack::SetImmutableRowsProvider(FKzImmutableRowsProvider InProvider)
+{
+	ImmutableRowsProvider = InProvider;
+	RefreshStack();
+}
+
+void SKzPropertyStack::RefreshRows()
+{
+	RefreshStack();
+}
+
 // =======================================================================================
 // Selection
 // =======================================================================================
 
-TArray<TSharedPtr<IPropertyHandle>> SKzPropertyStack::GetSelectedHandles() const
+TArray<TSharedPtr<FKzStackRow>> SKzPropertyStack::GetSelectedRows() const
 {
 	if (!ListViewWidget.IsValid()) { return {}; }
 	return ListViewWidget->GetSelectedItems();
+}
+
+TArray<TSharedPtr<IPropertyHandle>> SKzPropertyStack::GetSelectedHandles() const
+{
+	TArray<TSharedPtr<IPropertyHandle>> Handles;
+	for (const TSharedPtr<FKzStackRow>& Row : GetSelectedRows())
+	{
+		if (Row.IsValid() && Row->IsEditable())
+		{
+			Handles.Add(Row->Handle);
+		}
+	}
+	return Handles;
 }
 
 TSharedPtr<IPropertyHandle> SKzPropertyStack::GetPrimarySelectedHandle() const
@@ -428,15 +485,30 @@ TSharedPtr<IPropertyHandle> SKzPropertyStack::GetPrimarySelectedHandle() const
 	return Selected.Num() > 0 ? Selected.Last() : nullptr;
 }
 
+void SKzPropertyStack::NotifySelectionChanged()
+{
+	const TArray<TSharedPtr<FKzStackRow>> SelectedRows = GetSelectedRows();
+	const TSharedPtr<FKzStackRow> Primary = SelectedRows.Num() > 0 ? SelectedRows.Last() : nullptr;
+
+	// A read-only row is the primary selection: surface it to the immutable handler.
+	if (Primary.IsValid() && !Primary->IsEditable())
+	{
+		OnImmutableRowSelectedDelegate.ExecuteIfBound(Primary);
+		return;
+	}
+
+	OnSelectionChangedDelegate.ExecuteIfBound(GetSelectedHandles());
+}
+
 bool SKzPropertyStack::SelectByIndex(int32 Index)
 {
-	if (!ListViewWidget.IsValid() || !AllHandles.IsValidIndex(Index)) { return false; }
+	if (!ListViewWidget.IsValid() || !AllRows.IsValidIndex(Index) || !AllRows[Index]->IsEditable()) { return false; }
 
-	TSharedPtr<IPropertyHandle> Target = AllHandles[Index];
+	TSharedPtr<FKzStackRow> Target = AllRows[Index];
 	ListViewWidget->ClearSelection();
 	ListViewWidget->SetSelection(Target);
 	ListViewWidget->RequestScrollIntoView(Target);
-	OnSelectionChangedDelegate.ExecuteIfBound({ Target });
+	OnSelectionChangedDelegate.ExecuteIfBound({ Target->Handle });
 	return true;
 }
 
@@ -444,128 +516,193 @@ bool SKzPropertyStack::SelectByContextId(const FGuid& ContextId)
 {
 	if (!RowCustomizer.IsValid() || !ListViewWidget.IsValid()) { return false; }
 
+	// Gather editable handles for the customizer to resolve against.
+	TArray<TSharedPtr<IPropertyHandle>> Handles;
+	for (const TSharedPtr<FKzStackRow>& Row : AllRows)
+	{
+		if (Row.IsValid() && Row->IsEditable()) { Handles.Add(Row->Handle); }
+	}
+
 	TSharedPtr<IPropertyHandle> Resolved;
-	if (!RowCustomizer->TryResolveContextId(ContextId, AllHandles, Resolved)) { return false; }
+	if (!RowCustomizer->TryResolveContextId(ContextId, Handles, Resolved)) { return false; }
 	if (!Resolved.IsValid()) { return false; }
 
+	const TSharedPtr<FKzStackRow>* TargetRow = AllRows.FindByPredicate([&Resolved](const TSharedPtr<FKzStackRow>& Row)
+		{
+			return Row.IsValid() && Row->Handle == Resolved;
+		});
+	if (!TargetRow) { return false; }
+
 	ListViewWidget->ClearSelection();
-	ListViewWidget->SetSelection(Resolved);
-	ListViewWidget->RequestScrollIntoView(Resolved);
+	ListViewWidget->SetSelection(*TargetRow);
+	ListViewWidget->RequestScrollIntoView(*TargetRow);
 	OnSelectionChangedDelegate.ExecuteIfBound({ Resolved });
 	return true;
 }
 
-void SKzPropertyStack::OnListSelectionChanged(TSharedPtr<IPropertyHandle> /*SelectedItem*/, ESelectInfo::Type SelectInfo)
+void SKzPropertyStack::OnListSelectionChanged(TSharedPtr<FKzStackRow> /*SelectedItem*/, ESelectInfo::Type SelectInfo)
 {
 	if (bRestoringSelection) { return; }
-
-	const TArray<TSharedPtr<IPropertyHandle>> Selected = GetSelectedHandles();
 
 	// Only cache user-driven changes. Direct notifications (list refreshes) can carry a
 	// transient empty selection that would otherwise wipe what we need to restore.
 	if (SelectInfo != ESelectInfo::Direct)
 	{
 		SelectedIndices.Reset();
-		for (const TSharedPtr<IPropertyHandle>& Handle : Selected)
+		for (const TSharedPtr<FKzStackRow>& Row : GetSelectedRows())
 		{
-			if (Handle.IsValid())
+			if (Row.IsValid() && Row->IsEditable())
 			{
-				const int32 Index = Handle->GetIndexInArray();
+				const int32 Index = Row->Handle->GetIndexInArray();
 				if (Index != INDEX_NONE) { SelectedIndices.Add(Index); }
 			}
 		}
 	}
 
-	OnSelectionChangedDelegate.ExecuteIfBound(Selected);
+	NotifySelectionChanged();
 }
 
 // =======================================================================================
 // Row generation
 // =======================================================================================
 
-TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle> Item, const TSharedRef<STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<FKzStackRow> Item, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	const FText Tooltip = GetHandleToolTip(Item);
+	const bool bEditable = Item.IsValid() && Item->IsEditable();
+	TSharedPtr<IPropertyHandle> Handle = Item.IsValid() ? Item->Handle : nullptr;
 
-	const float HorizontalPadding = 6.0f;
-	const float VerticalPadding = 3.0f;
-	const FMargin Margin(HorizontalPadding, VerticalPadding);
+	const FMargin Margin(6.0f, 3.0f);
 
-	TSharedRef<SWidget> LeadingWidget = RowCustomizer.IsValid()
-		? RowCustomizer->BuildLeadingWidget(Item) : SNullWidget::NullWidget;
-	TSharedRef<SWidget> TrailingWidget = RowCustomizer.IsValid()
-		? RowCustomizer->BuildTrailingWidget(Item) : SNullWidget::NullWidget;
+	TSharedRef<SWidget> LeadingWidget = (bEditable && RowCustomizer.IsValid())
+		? RowCustomizer->BuildLeadingWidget(Handle) : SNullWidget::NullWidget;
+	TSharedRef<SWidget> TrailingWidget = (bEditable && RowCustomizer.IsValid())
+		? RowCustomizer->BuildTrailingWidget(Handle) : SNullWidget::NullWidget;
 
-	return SNew(STableRow<TSharedPtr<IPropertyHandle>>, OwnerTable)
+	const FText Tooltip = bEditable ? GetHandleToolTip(Handle) : Item->SourceTag;
+	const FSlateColor TextColor = (Item.IsValid() && Item->bIsOverridden)
+		? FSlateColor::UseSubduedForeground() : FSlateColor::UseForeground();
+
+	// --- Card content ---
+	TSharedRef<SHorizontalBox> RowBox = SNew(SHorizontalBox);
+
+	// Drag handle (editable only).
+	if (bEditable)
+	{
+		RowBox->AddSlot().MaxWidth(18).AutoWidth().HAlign(HAlign_Left).VAlign(VAlign_Center).Padding(Margin)
+			[
+				SNew(SImage).Image(FAppStyle::GetBrush("VerticalBoxDragIndicatorShort"))
+			];
+	}
+	else
+	{
+		// Lock glyph marks the row as inherited / read-only.
+		RowBox->AddSlot().MaxWidth(18).AutoWidth().HAlign(HAlign_Left).VAlign(VAlign_Center).Padding(Margin)
+			[
+				SNew(SImage).Image(FAppStyle::GetBrush("Icons.Lock")).ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			];
+	}
+
+	RowBox->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(Margin)
+		[
+			LeadingWidget
+		];
+
+	RowBox->AddSlot().FillWidth(1.0f).HAlign(HAlign_Left).VAlign(VAlign_Center).Padding(Margin)
+		[
+			SNew(STextBlock)
+				.Text_Lambda([this, Item]() { return FText::FromString(GetRowDisplayName(Item)); })
+				.ColorAndOpacity(TextColor)
+				.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+				.HighlightText(this, &SKzPropertyStack::GetSearchText)
+		];
+
+	// Optional origin tag (any row).
+	if (Item.IsValid() && !Item->SourceTag.IsEmpty())
+	{
+		RowBox->AddSlot().AutoWidth().HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(Margin)
+			[
+				SNew(STextBlock)
+					.Text(FText::Format(INVTEXT("[{0}]"), Item->SourceTag))
+					.Font(FAppStyle::Get().GetFontStyle("SmallFont"))
+					.ColorAndOpacity(FSlateColor::UseForeground())
+			];
+	}
+
+	RowBox->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(Margin)
+		[
+			TrailingWidget
+		];
+
+	// Delete button: collapsed for read-only rows so nothing reserves space to the right of the
+	// source tag. Uniform row height is kept by the MinDesiredHeight box wrapping the row content.
+	RowBox->AddSlot().AutoWidth().HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(Margin)
+		[
+			SNew(SButton)
+				.ContentPadding(FMargin(0, 2))
+				.Visibility(bEditable ? EVisibility::Visible : EVisibility::Collapsed)
+				.ToolTipText(FText::Format(INVTEXT("Delete this {0}."), ItemName))
+				.OnClicked(this, &SKzPropertyStack::OnDeleteElementClicked, Item)
+				[
+					SNew(SImage)
+						.Image(FAppStyle::GetBrush("Icons.Delete"))
+						.ColorAndOpacity(FSlateColor::UseForeground())
+				]
+		];
+
+	TSharedRef<SWidget> Card = SNew(SBorder)
+		.ToolTipText(Tooltip)
+		.BorderImage_Lambda([this, Item, bEditable]()
+			{
+				const bool bIsSelected = ListViewWidget.IsValid() && ListViewWidget->IsItemSelected(Item);
+
+				if (bEditable && RowCustomizer.IsValid())
+				{
+					if (const FSlateBrush* CustomBrush = RowCustomizer->GetBackgroundBrush(Item->Handle, bIsSelected))
+					{
+						return CustomBrush;
+					}
+				}
+
+				return bIsSelected
+					? FKzLibEditorStyle::Get().GetBrush("Kz.CardBorderSelected")
+					: FKzLibEditorStyle::Get().GetBrush("Kz.CardBorder");
+			})
+		.Padding(Margin * 1.5f)
+		[
+			SNew(SBox)
+				.MinDesiredHeight(30.0f)
+				.VAlign(VAlign_Center)
+				[
+					RowBox
+				]
+		];
+
+	// --- Optional group header above the card ---
+	TSharedRef<SWidget> Content = Card;
+	if (Item.IsValid() && Item->bRenderGroupHeader && !Item->GroupName.IsEmpty())
+	{
+		Content = SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(2.0f, 8.0f, 2.0f, 2.0f))
+			[
+				SNew(STextBlock)
+					.Text(Item->GroupName)
+					.Font(FAppStyle::Get().GetFontStyle("DetailsView.CategoryFontStyle"))
+					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			]
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				Card
+			];
+	}
+
+	return SNew(STableRow<TSharedPtr<FKzStackRow>>, OwnerTable)
 		.ShowSelection(false)
 		.Padding(Margin)
 		.OnDragDetected(this, &SKzPropertyStack::OnRowDragDetected, Item)
 		.OnCanAcceptDrop(this, &SKzPropertyStack::OnCanAcceptDrop)
 		.OnAcceptDrop(this, &SKzPropertyStack::OnAcceptDrop)
 		[
-			SNew(SBorder)
-				.ToolTipText(Tooltip)
-				.BorderImage_Lambda([this, Item]()
-					{
-						const bool bIsSelected = ListViewWidget.IsValid() && ListViewWidget->IsItemSelected(Item);
-
-						if (RowCustomizer.IsValid())
-						{
-							if (const FSlateBrush* CustomBrush = RowCustomizer->GetBackgroundBrush(Item, bIsSelected))
-							{
-								return CustomBrush;
-							}
-						}
-
-						return bIsSelected
-							? FKzLibEditorStyle::Get().GetBrush("Kz.CardBorderSelected")
-							: FKzLibEditorStyle::Get().GetBrush("Kz.CardBorder");
-					})
-				.Padding(Margin * 1.5f)
-				[
-					SNew(SHorizontalBox)
-
-						+ SHorizontalBox::Slot().MaxWidth(18).AutoWidth()
-						.HAlign(HAlign_Left).VAlign(VAlign_Center).Padding(Margin)
-						[
-							SNew(SImage).Image(FAppStyle::GetBrush("VerticalBoxDragIndicatorShort"))
-						]
-
-						+ SHorizontalBox::Slot().AutoWidth()
-						.VAlign(VAlign_Center).Padding(Margin)
-						[
-							LeadingWidget
-						]
-
-						+ SHorizontalBox::Slot().FillWidth(1.0f)
-						.HAlign(HAlign_Left).VAlign(VAlign_Center).Padding(Margin)
-						[
-							SNew(STextBlock)
-								.Text_Lambda([this, Item]() { return FText::FromString(GetHandleDisplayName(Item)); })
-								.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-								.HighlightText(this, &SKzPropertyStack::GetSearchText)
-						]
-
-						+ SHorizontalBox::Slot().AutoWidth()
-						.VAlign(VAlign_Center).Padding(Margin)
-						[
-							TrailingWidget
-						]
-
-						+ SHorizontalBox::Slot().AutoWidth()
-						.HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(Margin)
-						[
-							SNew(SButton)
-								.ContentPadding(FMargin(0, 2))
-								.ToolTipText(FText::Format(INVTEXT("Delete this {0}."), ItemName))
-								.OnClicked(this, &SKzPropertyStack::OnDeleteElementClicked, Item)
-								[
-									SNew(SImage)
-										.Image(FAppStyle::GetBrush("Icons.Delete"))
-										.ColorAndOpacity(FSlateColor::UseForeground())
-								]
-						]
-				]
+			Content
 		];
 }
 
@@ -627,11 +764,17 @@ FReply SKzPropertyStack::OnAddElementClicked()
 	ArrayHandle->AddItem();
 	RefreshStack();
 
-	if (AllHandles.Num() > 0 && ListViewWidget.IsValid())
+	if (AllRows.Num() > 0 && ListViewWidget.IsValid())
 	{
-		ListViewWidget->ClearSelection();
-		ListViewWidget->SetSelection(AllHandles.Last());
-		OnSelectionChangedDelegate.ExecuteIfBound({ AllHandles.Last() });
+		uint32 NumElements = 0;
+		ArrayHandle->GetNumElements(NumElements);
+		if (NumElements > 0 && AllRows.IsValidIndex((int32)NumElements - 1))
+		{
+			TSharedPtr<FKzStackRow> NewRow = AllRows[(int32)NumElements - 1];
+			ListViewWidget->ClearSelection();
+			ListViewWidget->SetSelection(NewRow);
+			OnSelectionChangedDelegate.ExecuteIfBound({ NewRow->Handle });
+		}
 	}
 	return FReply::Handled();
 }
@@ -678,21 +821,22 @@ void SKzPropertyStack::OnAddObjectClassSelected(UClass* ObjectClass)
 
 		RefreshStack();
 
-		if (ListViewWidget.IsValid())
+		if (ListViewWidget.IsValid() && AllRows.IsValidIndex((int32)NumElements - 1))
 		{
+			TSharedPtr<FKzStackRow> NewRow = AllRows[(int32)NumElements - 1];
 			ListViewWidget->ClearSelection();
-			ListViewWidget->SetSelection(NewElementHandle);
+			ListViewWidget->SetSelection(NewRow);
+			OnSelectionChangedDelegate.ExecuteIfBound({ NewRow->Handle });
 		}
-		OnSelectionChangedDelegate.ExecuteIfBound({ NewElementHandle });
 	}
 }
 
-FReply SKzPropertyStack::OnDeleteElementClicked(TSharedPtr<IPropertyHandle> ItemToDelete)
+FReply SKzPropertyStack::OnDeleteElementClicked(TSharedPtr<FKzStackRow> ItemToDelete)
 {
-	if (ArrayHandle.IsValid() && ItemToDelete.IsValid())
+	if (ArrayHandle.IsValid() && ItemToDelete.IsValid() && ItemToDelete->IsEditable())
 	{
 		const FScopedTransaction Transaction(FText::Format(INVTEXT("Delete {0}"), ItemName));
-		ArrayHandle->DeleteItem(ItemToDelete->GetIndexInArray());
+		ArrayHandle->DeleteItem(ItemToDelete->Handle->GetIndexInArray());
 		RefreshStack();
 		OnSelectionChangedDelegate.ExecuteIfBound({});
 	}
@@ -700,25 +844,29 @@ FReply SKzPropertyStack::OnDeleteElementClicked(TSharedPtr<IPropertyHandle> Item
 }
 
 // =======================================================================================
-// Drag & drop (multi-aware)
+// Drag & drop (multi-aware, editable rows only)
 // =======================================================================================
 
-FReply SKzPropertyStack::OnRowDragDetected(const FGeometry& /*MyGeometry*/, const FPointerEvent& MouseEvent, TSharedPtr<IPropertyHandle> DraggedItem)
+FReply SKzPropertyStack::OnRowDragDetected(const FGeometry& /*MyGeometry*/, const FPointerEvent& MouseEvent, TSharedPtr<FKzStackRow> DraggedItem)
 {
 	if (!MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton)) { return FReply::Unhandled(); }
+	if (!DraggedItem.IsValid() || !DraggedItem->IsEditable()) { return FReply::Unhandled(); }
 
 	// If the dragged item is part of the current selection, drag the whole selection.
 	// Otherwise drag just that one (and switch the selection to it).
 	TArray<TSharedPtr<IPropertyHandle>> Payload;
-	const TArray<TSharedPtr<IPropertyHandle>> Selected = GetSelectedHandles();
+	const TArray<TSharedPtr<FKzStackRow>> SelectedRows = GetSelectedRows();
 
-	if (Selected.Contains(DraggedItem))
+	if (SelectedRows.Contains(DraggedItem))
 	{
-		Payload = Selected;
+		for (const TSharedPtr<FKzStackRow>& Row : SelectedRows)
+		{
+			if (Row.IsValid() && Row->IsEditable()) { Payload.Add(Row->Handle); }
+		}
 	}
 	else
 	{
-		Payload = { DraggedItem };
+		Payload = { DraggedItem->Handle };
 		if (ListViewWidget.IsValid())
 		{
 			ListViewWidget->ClearSelection();
@@ -737,26 +885,26 @@ FReply SKzPropertyStack::OnRowDragDetected(const FGeometry& /*MyGeometry*/, cons
 	return FReply::Handled().BeginDragDrop(FKzPropertyDragDropOp::New(Payload));
 }
 
-TOptional<EItemDropZone> SKzPropertyStack::OnCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<IPropertyHandle> TargetItem)
+TOptional<EItemDropZone> SKzPropertyStack::OnCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FKzStackRow> TargetItem)
 {
 	TSharedPtr<FKzPropertyDragDropOp> DragOp = DragDropEvent.GetOperationAs<FKzPropertyDragDropOp>();
-	if (!DragOp.IsValid() || !TargetItem.IsValid()) { return TOptional<EItemDropZone>(); }
+	if (!DragOp.IsValid() || !TargetItem.IsValid() || !TargetItem->IsEditable()) { return TOptional<EItemDropZone>(); }
 
 	// Reject if target is itself part of the dragged set (would be a no-op move).
-	if (DragOp->HandlesToDrag.Contains(TargetItem)) { return TOptional<EItemDropZone>(); }
+	if (DragOp->HandlesToDrag.Contains(TargetItem->Handle)) { return TOptional<EItemDropZone>(); }
 	return DropZone;
 }
 
-FReply SKzPropertyStack::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<IPropertyHandle> TargetItem)
+FReply SKzPropertyStack::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FKzStackRow> TargetItem)
 {
 	TSharedPtr<FKzPropertyDragDropOp> DragOp = DragDropEvent.GetOperationAs<FKzPropertyDragDropOp>();
-	if (!DragOp.IsValid() || !ArrayHandle.IsValid() || !TargetItem.IsValid())
+	if (!DragOp.IsValid() || !ArrayHandle.IsValid() || !TargetItem.IsValid() || !TargetItem->IsEditable())
 	{
 		return FReply::Unhandled();
 	}
 
 	// Resolve indices fresh; the array hasn't changed yet.
-	int32 TargetIndex = TargetItem->GetIndexInArray();
+	int32 TargetIndex = TargetItem->Handle->GetIndexInArray();
 	if (TargetIndex == INDEX_NONE) { return FReply::Unhandled(); }
 	if (DropZone == EItemDropZone::BelowItem) { ++TargetIndex; }
 
@@ -803,8 +951,6 @@ FReply SKzPropertyStack::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItem
 
 		ArrayHandle->MoveElementTo(Source, Dest);
 		++InsertCursor; // next inserted item goes after the previous one
-		// Source positions of remaining items above Dest remain stable in absolute terms
-		// because MoveElementTo handles the shift internally.
 	}
 
 	RefreshStack();
@@ -812,7 +958,7 @@ FReply SKzPropertyStack::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItem
 }
 
 // =======================================================================================
-// Commands (multi-aware)
+// Commands (multi-aware, editable rows only via GetSelectedHandles)
 // =======================================================================================
 
 void SKzPropertyStack::BindCommands()
@@ -842,40 +988,67 @@ void SKzPropertyStack::BindCommands()
 
 bool SKzPropertyStack::CanCopyElements() const
 {
-	return GetSelectedHandles().Num() > 0;
+	// Any selected row can be copied, including read-only inherited rows.
+	return GetSelectedRows().Num() > 0;
 }
 
-bool SKzPropertyStack::CanCutElements() const { return CanCopyElements(); }
-bool SKzPropertyStack::CanDeleteElements() const { return CanCopyElements(); }
-bool SKzPropertyStack::CanDuplicateElements() const { return CanCopyElements(); }
+bool SKzPropertyStack::CanCutElements() const { return GetSelectedHandles().Num() > 0; }
+bool SKzPropertyStack::CanDeleteElements() const { return GetSelectedHandles().Num() > 0; }
+bool SKzPropertyStack::CanDuplicateElements() const { return GetSelectedHandles().Num() > 0; }
 bool SKzPropertyStack::CanPasteElement() const { return ArrayHandle.IsValid(); }
 
 void SKzPropertyStack::CopySelectedElements()
 {
-	const TArray<TSharedPtr<IPropertyHandle>> Selected = GetSelectedHandles();
-	if (Selected.Num() == 0) { return; }
+	const TArray<TSharedPtr<FKzStackRow>> SelectedRows = GetSelectedRows();
+	if (SelectedRows.Num() == 0) { return; }
 
 	if (bIsObjectArray)
 	{
-		// For objects, only single-element copy via the deep exporter is currently
-		// supported; multi-copy of polymorphic UObjects through clipboard would need
-		// a custom container format. Fall back to copying just the primary.
-		if (UObject* ObjectToCopy = nullptr; Selected.Last()->GetValue(ObjectToCopy) == FPropertyAccess::Success && ObjectToCopy)
+		// For objects, only single-element copy via the deep exporter is currently supported.
+		// Copy the primary editable object (read-only object rows aren't a supported case).
+		for (int32 i = SelectedRows.Num() - 1; i >= 0; --i)
 		{
-			FKzClipboardUtils::CopyObjectToClipboard(ObjectToCopy);
+			if (SelectedRows[i].IsValid() && SelectedRows[i]->IsEditable())
+			{
+				UObject* ObjectToCopy = nullptr;
+				if (SelectedRows[i]->Handle->GetValue(ObjectToCopy) == FPropertyAccess::Success && ObjectToCopy)
+				{
+					FKzClipboardUtils::CopyObjectToClipboard(ObjectToCopy);
+				}
+				break;
+			}
 		}
 		return;
 	}
 
-	// Structs/primitives: serialize each handle and join with a separator that
-	// PasteElement understands (one entry per line, prefixed to disambiguate).
-	TArray<FString> Lines;
-	for (const TSharedPtr<IPropertyHandle>& Handle : Selected)
+	// Struct/primitive arrays: serialize each selected row and join with a separator that
+	// PasteElement understands. Editable rows export via their handle; read-only rows export
+	// their snapshot through the array's inner struct property (so paste can import it).
+	FStructProperty* InnerStructProp = nullptr;
+	if (RootHandle.IsValid())
 	{
-		if (!Handle.IsValid()) { continue; }
-		FString Serialized;
-		if (Handle->GetValueAsFormattedString(Serialized) == FPropertyAccess::Success)
+		if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(RootHandle->GetProperty()))
 		{
+			InnerStructProp = CastField<FStructProperty>(ArrayProp->Inner);
+		}
+	}
+
+	TArray<FString> Lines;
+	for (const TSharedPtr<FKzStackRow>& Row : SelectedRows)
+	{
+		if (!Row.IsValid()) { continue; }
+
+		FString Serialized;
+		if (Row->IsEditable())
+		{
+			if (Row->Handle->GetValueAsFormattedString(Serialized) == FPropertyAccess::Success)
+			{
+				Lines.Add(Serialized);
+			}
+		}
+		else if (Row->Snapshot.IsValid() && Row->Snapshot->IsValid() && InnerStructProp && Row->Snapshot->GetStruct() == InnerStructProp->Struct)
+		{
+			InnerStructProp->ExportTextItem_Direct(Serialized, Row->Snapshot->GetStructMemory(), nullptr, nullptr, PPF_None);
 			Lines.Add(Serialized);
 		}
 	}
@@ -970,10 +1143,10 @@ void SKzPropertyStack::PasteElement()
 			}
 
 			RefreshStack();
-			if (ListViewWidget.IsValid())
+			if (ListViewWidget.IsValid() && AllRows.IsValidIndex((int32)NumElements - 1))
 			{
 				ListViewWidget->ClearSelection();
-				ListViewWidget->SetSelection(NewElementHandle);
+				ListViewWidget->SetSelection(AllRows[(int32)NumElements - 1]);
 			}
 			OnSelectionChangedDelegate.ExecuteIfBound({ NewElementHandle });
 		}
@@ -1010,9 +1183,12 @@ void SKzPropertyStack::PasteElement()
 	if (ListViewWidget.IsValid() && Inserted.Num() > 0)
 	{
 		ListViewWidget->ClearSelection();
-		for (const TSharedPtr<IPropertyHandle>& H : Inserted)
+		for (const TSharedPtr<FKzStackRow>& Row : AllRows)
 		{
-			ListViewWidget->SetItemSelection(H, true);
+			if (Row.IsValid() && Row->IsEditable() && Inserted.Contains(Row->Handle))
+			{
+				ListViewWidget->SetItemSelection(Row, true);
+			}
 		}
 	}
 	OnSelectionChangedDelegate.ExecuteIfBound(Inserted);
@@ -1091,10 +1267,8 @@ void SKzPropertyStack::DuplicateSelectedElements()
 
 	RefreshStack();
 
-	// New duplicates live at OriginalIndex+1, but since the array shifted as we went,
-	// the cleanest way to find them is to reselect by walking AllHandles and picking
-	// items whose value matches the originals at the corresponding adjusted positions.
-	// For simplicity, just clear the selection and let the user re-select.
+	// Finding the exact new duplicates after the array shifted is fiddly; clear the
+	// selection and let the user re-select.
 	if (ListViewWidget.IsValid()) { ListViewWidget->ClearSelection(); }
 	OnSelectionChangedDelegate.ExecuteIfBound({});
 }

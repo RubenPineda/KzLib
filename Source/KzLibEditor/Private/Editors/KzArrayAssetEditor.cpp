@@ -268,12 +268,19 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 			{ return FKzArrayAssetDetailCustomization::MakeInstance(this); }));
 	AssetDetailsView->SetObject(AssetToEdit);
 
+	// Rebuild injected (inherited) rows when an asset-level property (e.g. a parent reference) changes.
+	AssetPropertyChangedHandle = AssetDetailsView->OnFinishedChangingProperties().AddSP(this, &FKzArrayAssetEditor::OnAssetPropertyChanged);
+
 	// The element view needs the notify hook: struct entries are edited as external
 	// structures, which the property editor cannot transact through any UObject by itself
 	// (NotifyPreChange snapshots the asset; see header). Object entries transact natively.
 	FDetailsViewArgs ElementDetailsViewArgs = DetailsViewArgs;
 	ElementDetailsViewArgs.NotifyHook = this;
 	ElementDetailsView = PropertyEditorModule.CreateDetailView(ElementDetailsViewArgs);
+
+	// Read-only rows (e.g. inherited parent entries) show their details with editing disabled.
+	ElementDetailsView->SetIsPropertyEditingEnabledDelegate(
+		FIsPropertyEditingEnabled::CreateSP(this, &FKzArrayAssetEditor::IsElementEditingEnabled));
 
 	// Build layout: each array stack on the left in its own tab, shared element/details
 	// + validation on the right.
@@ -421,7 +428,19 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ArrayStack(const FSpawnTabArg
 		.ItemName(Runtime.ItemName)
 		.ItemNamePlural(Tabs[TabIndex].GetPluralItemName())
 		.RowCustomizer(Runtime.Customizer)
-		.OnSelectionChanged(this, &FKzArrayAssetEditor::OnElementsSelected);
+		.OnSelectionChanged(this, &FKzArrayAssetEditor::OnElementsSelected)
+		.OnImmutableRowSelected(this, &FKzArrayAssetEditor::OnImmutableRowSelected);
+
+	// Wire the optional inherited/read-only row source for this tab.
+	if (Tabs[TabIndex].ImmutableRowsSource)
+	{
+		TFunction<TArray<TSharedPtr<FKzStackRow>>(UObject*)> Source = Tabs[TabIndex].ImmutableRowsSource;
+		UObject* Asset = AssetToEdit;
+		Runtime.StackWidget->SetImmutableRowsProvider(FKzImmutableRowsProvider::CreateLambda([Source, Asset]()
+			{
+				return Source ? Source(Asset) : TArray<TSharedPtr<FKzStackRow>>();
+			}));
+	}
 
 	const FText PluralLabel = Tabs[TabIndex].GetPluralItemName();
 
@@ -491,6 +510,12 @@ void FKzArrayAssetEditor::OnClose()
 		}
 	}
 
+	if (AssetDetailsView.IsValid() && AssetPropertyChangedHandle.IsValid())
+	{
+		AssetDetailsView->OnFinishedChangingProperties().Remove(AssetPropertyChangedHandle);
+		AssetPropertyChangedHandle.Reset();
+	}
+
 	FAssetEditorToolkit::OnClose();
 }
 
@@ -501,6 +526,9 @@ void FKzArrayAssetEditor::OnClose()
 void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHandle>>& SelectedHandles)
 {
 	if (!ElementDetailsContainer.IsValid()) { return; }
+
+	// Editable selection: re-enable the details panel (an immutable row may have disabled it).
+	bSelectedRowImmutable = false;
 
 	ElementDetailsContainer->SetContent(SNullWidget::NullWidget);
 	if (ElementDetailsView.IsValid())
@@ -699,6 +727,119 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 		]);
 }
 
+void FKzArrayAssetEditor::ShowStructsInPanel(const TArray<TSharedPtr<FStructOnScope>>& Structs, const TArray<TSharedPtr<IPropertyHandle>>& WriteBackHandles, const FText& HeaderLabel)
+{
+	if (Structs.Num() == 0 || !ElementDetailsView.IsValid() || !ElementDetailsContainer.IsValid()) { return; }
+
+	// Drop the previous customization (if any) so layouts don't stack across selections.
+	ElementDetailsView->UnregisterInstancedCustomPropertyLayout(UKzExternalStructHost::StaticClass());
+
+	// Inject the structs as external structures (same path as editable selections).
+	ElementDetailsView->RegisterInstancedCustomPropertyLayout(
+		UKzExternalStructHost::StaticClass(),
+		FOnGetDetailCustomizationInstance::CreateLambda([Structs, HeaderLabel]()
+			{
+				class FKzExternalStructProxy : public IDetailCustomization
+				{
+				public:
+					TArray<TSharedPtr<FStructOnScope>> InnerStructs;
+					FText HeaderLabel;
+
+					FKzExternalStructProxy(const TArray<TSharedPtr<FStructOnScope>>& InData, const FText& InHeaderLabel)
+						: InnerStructs(InData)
+						, HeaderLabel(InHeaderLabel) {
+					}
+
+					virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
+					{
+						if (InnerStructs.Num() == 0) { return; }
+
+						IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(
+							"SelectedElement",
+							NSLOCTEXT("KzArrayEditor", "DetailsCategory", "Details"),
+							ECategoryPriority::Important);
+
+						Category.InitiallyCollapsed(false);
+						Category.RestoreExpansionState(false);
+
+						if (InnerStructs.Num() == 1)
+						{
+							IDetailPropertyRow* Row = Category.AddExternalStructure(InnerStructs[0]);
+							if (Row)
+							{
+								Row->ShouldAutoExpand(true);
+
+								TSharedPtr<SWidget> UnusedNameWidget, UnusedValueWidget;
+								Row->GetDefaultWidgets(UnusedNameWidget, UnusedValueWidget);
+
+								Row->CustomWidget(/*bShowChildren=*/true)
+									.NameContent()
+									[
+										SNew(STextBlock)
+											.Font(IDetailLayoutBuilder::GetDetailFontBold())
+											.Text(HeaderLabel)
+									];
+							}
+							return;
+						}
+
+						TSharedRef<IStructureDataProvider> Provider = MakeShared<FKzStructOnScopeProvider>(InnerStructs);
+						Category.AddAllExternalStructureProperties(Provider);
+					}
+				};
+
+				return MakeShared<FKzExternalStructProxy>(Structs, HeaderLabel);
+			}));
+
+	// Unbind any previous change subscription before adding a fresh one.
+	if (StructEditChangedHandle.IsValid())
+	{
+		ElementDetailsView->OnFinishedChangingProperties().Remove(StructEditChangedHandle);
+		StructEditChangedHandle.Reset();
+	}
+
+	// Bind write-back only for editable selections; immutable snapshots pass no handles.
+	if (WriteBackHandles.Num() > 0)
+	{
+		StructEditChangedHandle = ElementDetailsView->OnFinishedChangingProperties().AddLambda(
+			[WriteBackHandles](const FPropertyChangedEvent& /*Event*/)
+			{
+				for (const TSharedPtr<IPropertyHandle>& Handle : WriteBackHandles)
+				{
+					if (Handle.IsValid() && Handle->IsValidHandle())
+					{
+						Handle->NotifyPostChange(EPropertyChangeType::ValueSet);
+					}
+				}
+			});
+	}
+
+	ElementDetailsView->SetObject(ExternalStructHost.Get());
+	ElementDetailsContainer->SetContent(ElementDetailsView.ToSharedRef());
+
+	// The host object is unchanged across reselects, so SetObject alone won't regenerate the rows.
+	ElementDetailsView->ForceRefresh();
+}
+
+void FKzArrayAssetEditor::OnImmutableRowSelected(TSharedPtr<FKzStackRow> Row)
+{
+	if (!ElementDetailsContainer.IsValid()) { return; }
+
+	ElementDetailsContainer->SetContent(SNullWidget::NullWidget);
+	if (ElementDetailsView.IsValid()) { ElementDetailsView->SetObject(nullptr); }
+
+	if (!Row.IsValid() || !Row->Snapshot.IsValid() || !Row->Snapshot->IsValid()) { return; }
+
+	// Gate editing off, then render the snapshot like any other struct.
+	bSelectedRowImmutable = true;
+
+	const FText HeaderLabel = !Row->DisplayLabel.IsEmpty()
+		? Row->DisplayLabel
+		: (Row->Snapshot->GetStruct() ? Row->Snapshot->GetStruct()->GetDisplayNameText() : NSLOCTEXT("KzArrayEditor", "Inherited", "Inherited"));
+
+	ShowStructsInPanel({ Row->Snapshot }, {}, HeaderLabel);
+}
+
 void FKzArrayAssetEditor::OnArrayStackTabActivated(TSharedRef<SDockTab> /*ActivatedTab*/, ETabActivationCause Cause, int32 TabIndex)
 {
 	// Only react to user-driven activations. Programmatic ones (e.g. layout restore at
@@ -717,6 +858,19 @@ void FKzArrayAssetEditor::OnArrayStackTabActivated(TSharedRef<SDockTab> /*Activa
 // =======================================================================================
 // Validation
 // =======================================================================================
+
+void FKzArrayAssetEditor::OnAssetPropertyChanged(const FPropertyChangedEvent& /*Event*/)
+{
+	// Only tabs with an injected-row source depend on asset-level state (e.g. a parent reference).
+	// Rebuild those so inherited rows reflect the change; leave plain tabs (and their selection) alone.
+	for (int32 i = 0; i < TabRuntimes.Num(); ++i)
+	{
+		if (Tabs.IsValidIndex(i) && Tabs[i].ImmutableRowsSource && TabRuntimes[i].StackWidget.IsValid())
+		{
+			TabRuntimes[i].StackWidget->RefreshRows();
+		}
+	}
+}
 
 void FKzArrayAssetEditor::OnRunValidation()
 {

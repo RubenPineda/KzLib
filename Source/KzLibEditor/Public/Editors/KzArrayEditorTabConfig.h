@@ -4,8 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "Templates/SharedPointer.h"
+#include "Templates/Function.h"
 
 class FKzPropertyStackRowCustomizer;
+struct FKzStackRow;
 
 /**
  * Describes a single array-backed tab inside a FKzArrayAssetEditor.
@@ -31,6 +33,9 @@ struct KZLIBEDITOR_API FKzArrayEditorTabConfig
 	FText ItemNamePlural;
 
 	TSharedPtr<FKzPropertyStackRowCustomizer> RowCustomizer;
+
+	/** Optional: builds read-only injected rows (e.g. inherited parent entries) for the edited asset. */
+	TFunction<TArray<TSharedPtr<FKzStackRow>>(UObject* /*Asset*/)> ImmutableRowsSource;
 
 	FKzArrayEditorTabConfig() = default;
 
