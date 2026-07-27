@@ -77,10 +77,16 @@ namespace Kz
 			}
 		}
 
-		void Query(TArray<TElement>& OutResults, const FKzShapeInstance& Shape, const FVector& Position, const FQuat& Rotation) const
+		void Query(TArray<typename TSemantics::ElementIdType>& OutResults, const FKzShapeInstance& Shape, const FVector& Position, const FQuat& Rotation) const
 		{
 			StaticGrid.Query(OutResults, Shape, Position, Rotation);
 			DynamicGrid.Query(OutResults, Shape, Position, Rotation);
+		}
+
+		void DebugDraw(const class UWorld* World, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const
+		{
+			StaticGrid.DebugDraw(World, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
+			DynamicGrid.DebugDraw(World, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
 		}
 
 		void TickDynamics()
