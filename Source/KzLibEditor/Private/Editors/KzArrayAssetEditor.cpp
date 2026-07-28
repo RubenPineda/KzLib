@@ -211,14 +211,15 @@ TSharedRef<FKzArrayAssetEditor> FKzArrayAssetEditor::CreateEditor(
 	const EToolkitMode::Type Mode,
 	const TSharedPtr<IToolkitHost>& InitToolkitHost,
 	const TArray<UObject*>& ObjectsToEdit,
-	const TArray<FKzArrayEditorTabConfig>& InTabs)
+	const TArray<FKzArrayEditorTabConfig>& InTabs,
+	const TArray<FKzCustomEditorTabConfig>& InCustomTabs)
 {
 	TSharedRef<FKzArrayAssetEditor> NewEditor(new FKzArrayAssetEditor());
 	if (ObjectsToEdit.Num() > 0)
 	{
 		if (UObject* Asset = ObjectsToEdit[0])
 		{
-			NewEditor->InitArrayAssetEditor(Mode, InitToolkitHost, Asset, InTabs);
+			NewEditor->InitArrayAssetEditor(Mode, InitToolkitHost, Asset, InTabs, InCustomTabs);
 		}
 	}
 	return NewEditor;
@@ -228,10 +229,12 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 	const EToolkitMode::Type Mode,
 	const TSharedPtr<IToolkitHost>& InitToolkitHost,
 	UObject* InAsset,
-	const TArray<FKzArrayEditorTabConfig>& InTabs)
+	const TArray<FKzArrayEditorTabConfig>& InTabs,
+	const TArray<FKzCustomEditorTabConfig>& InCustomTabs)
 {
 	AssetToEdit = InAsset;
 	Tabs = InTabs;
+	CustomTabs = InCustomTabs;
 
 	ExternalStructHost.Reset(NewObject<UKzExternalStructHost>(AssetToEdit));
 
@@ -295,7 +298,17 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 		LeftStack->SetForegroundTab(TabRuntimes[0].TabId);
 	}
 
-	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("Standalone_KzArrayEditor_Layout_v4")
+	// Custom tabs dock with the Validation panel; Validation stays foreground.
+	TSharedRef<FTabManager::FStack> RightBottomStack = FTabManager::NewStack()
+		->SetSizeCoefficient(0.35f)
+		->AddTab(ValidationTabId, ETabState::OpenedTab);
+	for (const FKzCustomEditorTabConfig& CustomTab : CustomTabs)
+	{
+		RightBottomStack->AddTab(CustomTab.TabId, ETabState::OpenedTab);
+	}
+	RightBottomStack->SetForegroundTab(ValidationTabId);
+
+	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("Standalone_KzArrayEditor_Layout_v5")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal)
@@ -321,12 +334,7 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 					->SetSizeCoefficient(0.65f)
 					->AddTab(GetElementDetailsTabId(), ETabState::OpenedTab)
 				)
-				->Split
-				(
-					FTabManager::NewStack()
-					->SetSizeCoefficient(0.35f)
-					->AddTab(ValidationTabId, ETabState::OpenedTab)
-				)
+				->Split(RightBottomStack)
 			)
 		);
 
@@ -378,6 +386,19 @@ void FKzArrayAssetEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InT
 		.SetDisplayName(NSLOCTEXT("KzArrayEditor", "ValidationTab", "Validation"))
 		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.WarningWithColor"));
+
+	for (int32 i = 0; i < CustomTabs.Num(); ++i)
+	{
+		FTabSpawnerEntry& Entry = InTabManager->RegisterTabSpawner(CustomTabs[i].TabId,
+			FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_Custom, i))
+			.SetDisplayName(CustomTabs[i].Label)
+			.SetGroup(WorkspaceMenuCategory.ToSharedRef());
+
+		if (!CustomTabs[i].IconStyleName.IsNone())
+		{
+			Entry.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), CustomTabs[i].IconStyleName));
+		}
+	}
 }
 
 void FKzArrayAssetEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
@@ -391,6 +412,11 @@ void FKzArrayAssetEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& I
 	for (const FTabRuntime& Runtime : TabRuntimes)
 	{
 		InTabManager->UnregisterTabSpawner(Runtime.TabId);
+	}
+
+	for (const FKzCustomEditorTabConfig& CustomTab : CustomTabs)
+	{
+		InTabManager->UnregisterTabSpawner(CustomTab.TabId);
 	}
 }
 
@@ -464,6 +490,20 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_Validation(const FSpawnTabArg
 		[
 			ValidationPanel.ToSharedRef()
 		];
+}
+
+TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_Custom(const FSpawnTabArgs& /*Args*/, int32 CustomTabIndex)
+{
+	if (CustomTabs.IsValidIndex(CustomTabIndex) && CustomTabs[CustomTabIndex].MakeWidget)
+	{
+		return SNew(SDockTab)
+			.Label(CustomTabs[CustomTabIndex].Label)
+			[
+				CustomTabs[CustomTabIndex].MakeWidget(AssetToEdit)
+			];
+	}
+
+	return SNew(SDockTab);
 }
 
 // =======================================================================================

@@ -7,7 +7,28 @@
 #include "Templates/Function.h"
 
 class FKzPropertyStackRowCustomizer;
+class SWidget;
 struct FKzStackRow;
+
+/**
+ * Describes an extra caller-provided widget tab inside a FKzArrayAssetEditor: reports,
+ * dashboards, anything that is not an array stack. Custom tabs dock next to the
+ * Validation panel by default.
+ */
+struct KZLIBEDITOR_API FKzCustomEditorTabConfig
+{
+	/** Stable tab identifier, unique within the editor (e.g. "KzDialogue_L10NCoverage"). */
+	FName TabId;
+
+	/** Tab label. */
+	FText Label;
+
+	/** Optional icon style name resolved against FAppStyle (e.g. "LevelEditor.Tabs.StatsViewer"). */
+	FName IconStyleName;
+
+	/** Builds the tab's content for the edited asset. Called on every tab spawn. */
+	TFunction<TSharedRef<SWidget>(UObject* /*Asset*/)> MakeWidget;
+};
 
 /**
  * Describes a single array-backed tab inside a FKzArrayAssetEditor.

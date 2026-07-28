@@ -35,13 +35,15 @@ public:
 		const EToolkitMode::Type Mode,
 		const TSharedPtr<IToolkitHost>& InitToolkitHost,
 		const TArray<UObject*>& ObjectsToEdit,
-		const TArray<FKzArrayEditorTabConfig>& InTabs);
+		const TArray<FKzArrayEditorTabConfig>& InTabs,
+		const TArray<FKzCustomEditorTabConfig>& InCustomTabs = TArray<FKzCustomEditorTabConfig>());
 
 	void InitArrayAssetEditor(
 		const EToolkitMode::Type Mode,
 		const TSharedPtr<IToolkitHost>& InitToolkitHost,
 		UObject* InAsset,
-		const TArray<FKzArrayEditorTabConfig>& InTabs);
+		const TArray<FKzArrayEditorTabConfig>& InTabs,
+		const TArray<FKzCustomEditorTabConfig>& InCustomTabs = TArray<FKzCustomEditorTabConfig>());
 
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 	virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
@@ -62,6 +64,7 @@ public:
 private:
 	UObject* AssetToEdit = nullptr;
 	TArray<FKzArrayEditorTabConfig> Tabs;
+	TArray<FKzCustomEditorTabConfig> CustomTabs;
 
 	TSharedPtr<IDetailsView> AssetDetailsView;
 	TSharedPtr<IDetailsView> ElementDetailsView;
@@ -101,6 +104,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_ElementDetails(const FSpawnTabArgs& Args, FName ElementDetailsTabId);
 	TSharedRef<SDockTab> SpawnTab_ArrayStack(const FSpawnTabArgs& Args, int32 TabIndex);
 	TSharedRef<SDockTab> SpawnTab_Validation(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_Custom(const FSpawnTabArgs& Args, int32 CustomTabIndex);
 
 	void OnElementsSelected(const TArray<TSharedPtr<IPropertyHandle>>& SelectedHandles);
 	void OnImmutableRowSelected(TSharedPtr<FKzStackRow> Row);
