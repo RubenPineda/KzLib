@@ -25,6 +25,18 @@ namespace Kz
 			DynamicGrid.SetCellSize(InCellSize);
 		}
 
+		/**
+		 * Minimum bounds movement (in units) before a dynamic element is re-indexed.
+		 * Default FBox::Equals tolerance is microscopic: simulating or animated
+		 * primitives jitter past it every frame and would churn Remove+Insert for
+		 * elements that have not meaningfully moved. Cell placement tolerates a
+		 * few units of staleness (queries narrowphase against real positions).
+		 */
+		void SetReindexThreshold(float InThreshold)
+		{
+			ReindexThreshold = FMath::Max(0.0f, InThreshold);
+		}
+
 		void Reset()
 		{
 			StaticGrid.Reset();
@@ -102,7 +114,7 @@ namespace Kz
 				}
 
 				const FBox CurrentBounds = TSemantics::GetBoundingBox(Track.Element);
-				if (!CurrentBounds.Equals(Track.LastBounds))
+				if (!CurrentBounds.Equals(Track.LastBounds, ReindexThreshold))
 				{
 					DynamicGrid.Remove(Track.Element, Track.LastBounds);
 					Track.LastBounds = CurrentBounds;
@@ -124,5 +136,6 @@ namespace Kz
 		TSpatialHashGrid<TElement, TSemantics> DynamicGrid;
 		TSet<TElement> Registered;
 		TArray<FDynamicTrack> DynamicTracks;
+		float ReindexThreshold = 10.0f;
 	};
 }
