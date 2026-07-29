@@ -12,6 +12,8 @@
 #include "ScopedTransaction.h"
 #include "ClassViewerFilter.h"
 #include "ClassViewerModule.h"
+#include "IDetailChildrenBuilder.h"
+#include "PropertyHandle.h"
 
 // --- Custom Drag and Drop Operation Template ---
 template<typename T>
@@ -166,6 +168,34 @@ struct FKzClipboardUtils
 // --- PropertyHandle Utilities ---
 struct FKzPropertyHandleUtils
 {
+	/**
+	 * Adds every child of StructHandle to the builder, honoring ShowOnlyInnerProperties on
+	 * struct children: their inner properties are added in place of the struct's own row
+	 * (recursively), the way default detail layouts flatten and plain AddProperty loops don't.
+	 * SkipChildren names top-level children the caller renders manually.
+	 */
+	static void AddChildrenHonoringInnerProperties(IDetailChildrenBuilder& StructBuilder, TSharedRef<IPropertyHandle> StructHandle, const TSet<FName>& SkipChildren = TSet<FName>())
+	{
+		uint32 NumChildren = 0;
+		StructHandle->GetNumChildren(NumChildren);
+		for (uint32 i = 0; i < NumChildren; ++i)
+		{
+			TSharedPtr<IPropertyHandle> Child = StructHandle->GetChildHandle(i);
+			if (!Child.IsValid()) { continue; }
+
+			const FProperty* Property = Child->GetProperty();
+			if (Property && SkipChildren.Contains(Property->GetFName())) { continue; }
+
+			if (Property && Property->IsA<FStructProperty>() && Property->HasMetaData(TEXT("ShowOnlyInnerProperties")))
+			{
+				AddChildrenHonoringInnerProperties(StructBuilder, Child.ToSharedRef());
+				continue;
+			}
+
+			StructBuilder.AddProperty(Child.ToSharedRef());
+		}
+	}
+
 	/** Returns true if PropertyHandle or any of its ancestor handles have the given metadata. */
 	static bool HasMetaDataInHierarchy(TSharedPtr<IPropertyHandle> PropertyHandle, FName MetaKey)
 	{
