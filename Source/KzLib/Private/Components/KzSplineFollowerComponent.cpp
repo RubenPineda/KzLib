@@ -183,19 +183,24 @@ void UKzSplineFollowerComponent::TickComponent(float DeltaTime, ELevelTick TickT
 	}
 	else
 	{
-		// Non-looping boundaries
-		if (DistanceDelta > 0.0f && PrevDistance < SplineLength && NewDistance >= SplineLength)
-		{
-			OnSplineEndReached.Broadcast();
-		}
-		else if (DistanceDelta < 0.0f && PrevDistance > 0.0f && NewDistance <= 0.0f)
-		{
-			OnSplineEndReached.Broadcast();
-		}
+		// Non-looping boundaries. Detect the crossing from the pre-clamp delta, but commit CurrentDistance to the
+		// clamped boundary BEFORE broadcasting: a handler reading GetCurrentDistance() must see the end (0 or
+		// SplineLength), not last tick's position. At high speed a single tick can jump from well short of the end
+		// to past it, so the pre-commit value could be far from the boundary and make end-of-spline handlers misfire.
+		const bool bReachedBoundary =
+			(DistanceDelta > 0.0f && PrevDistance < SplineLength && NewDistance >= SplineLength) ||
+			(DistanceDelta < 0.0f && PrevDistance > 0.0f && NewDistance <= 0.0f);
+
 		NewDistance = FMath::Clamp(NewDistance, 0.0f, SplineLength);
+		CurrentDistance = NewDistance;
+
+		if (bReachedBoundary)
+		{
+			OnSplineEndReached.Broadcast();
+		}
 	}
 
-	// Commit the safely calculated distance
+	// Commit the safely calculated distance (already committed above for the non-looping branch)
 	CurrentDistance = NewDistance;
 
 	// --- Apply Movement ---
