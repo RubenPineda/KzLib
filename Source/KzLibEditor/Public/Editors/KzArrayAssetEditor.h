@@ -61,6 +61,9 @@ public:
 	 *  cross-tab data like resolving an alias's lines). */
 	UObject* GetEditedAsset() const { return AssetToEdit; }
 
+	/** Selects the element whose customizer resolves the given context id (e.g. a line GUID), in whichever array tab owns it. */
+	bool SelectElementById(const FGuid& ContextId);
+
 private:
 	UObject* AssetToEdit = nullptr;
 	TArray<FKzArrayEditorTabConfig> Tabs;

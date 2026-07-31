@@ -930,21 +930,24 @@ TArray<FKzValidationIssue> FKzArrayAssetEditor::HandleRunValidation()
 	return FKzAssetValidationUtils::RunValidation(AssetToEdit);
 }
 
+bool FKzArrayAssetEditor::SelectElementById(const FGuid& ContextId)
+{
+	if (!ContextId.IsValid()) { return false; }
+
+	for (const FTabRuntime& Runtime : TabRuntimes)
+	{
+		if (Runtime.StackWidget.IsValid() && Runtime.StackWidget->SelectByContextId(ContextId))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void FKzArrayAssetEditor::HandleValidationIssueActivated(const FKzValidationIssue& Issue)
 {
 	// Try each tab's customizer to resolve the GUID, falling back to index, to select the row.
-	bool bNavigated = false;
-	if (Issue.ContextId.IsValid())
-	{
-		for (const FTabRuntime& Runtime : TabRuntimes)
-		{
-			if (Runtime.StackWidget.IsValid() && Runtime.StackWidget->SelectByContextId(Issue.ContextId))
-			{
-				bNavigated = true;
-				break;
-			}
-		}
-	}
+	const bool bNavigated = SelectElementById(Issue.ContextId);
 
 	if (!bNavigated && Issue.ContextIndex != INDEX_NONE)
 	{

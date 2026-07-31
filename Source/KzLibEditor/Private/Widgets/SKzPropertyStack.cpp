@@ -115,6 +115,7 @@ void SKzPropertyStack::Construct(const FArguments& InArgs, TSharedPtr<IPropertyH
 								.ListItemsSource(&FilteredRows)
 								.OnGenerateRow(this, &SKzPropertyStack::OnGenerateRow)
 								.OnSelectionChanged(this, &SKzPropertyStack::OnListSelectionChanged)
+								.OnMouseButtonDoubleClick(this, &SKzPropertyStack::OnRowDoubleClick)
 								.OnContextMenuOpening(this, &SKzPropertyStack::GetContextMenuContent)
 								.SelectionMode(SelectionMode)
 						]
@@ -565,6 +566,14 @@ void SKzPropertyStack::OnListSelectionChanged(TSharedPtr<FKzStackRow> /*Selected
 // =======================================================================================
 // Row generation
 // =======================================================================================
+
+void SKzPropertyStack::OnRowDoubleClick(TSharedPtr<FKzStackRow> Item)
+{
+	if (RowCustomizer.IsValid() && Item.IsValid() && Item->IsEditable())
+	{
+		RowCustomizer->OnRowDoubleClicked(Item->Handle);
+	}
+}
 
 TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<FKzStackRow> Item, const TSharedRef<STableViewBase>& OwnerTable)
 {

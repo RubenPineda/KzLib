@@ -196,6 +196,7 @@ private:
 
 	TSharedRef<ITableRow> OnGenerateRow(TSharedPtr<FKzStackRow> Item, const TSharedRef<STableViewBase>& OwnerTable);
 	void OnListSelectionChanged(TSharedPtr<FKzStackRow> SelectedItem, ESelectInfo::Type SelectInfo);
+	void OnRowDoubleClick(TSharedPtr<FKzStackRow> Item);
 	TSharedPtr<SWidget> GetContextMenuContent();
 
 	FReply OnAddElementClicked();

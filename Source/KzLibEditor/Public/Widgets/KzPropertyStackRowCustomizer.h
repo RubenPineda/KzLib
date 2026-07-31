@@ -106,6 +106,12 @@ public:
 		return nullptr;
 	}
 
+	/**
+	 * Called when the user double-clicks an editable row. Default: no action.
+	 * Common use: navigate to the entity the row references.
+	 */
+	virtual void OnRowDoubleClicked(TSharedPtr<IPropertyHandle> Handle) {}
+
 	// ---------------------------------------------------------------------------
 	// Context resolution (used by validation jump-to and other navigation features)
 	// ---------------------------------------------------------------------------
