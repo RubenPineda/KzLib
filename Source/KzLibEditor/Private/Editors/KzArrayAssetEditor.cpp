@@ -938,6 +938,13 @@ bool FKzArrayAssetEditor::SelectElementById(const FGuid& ContextId)
 	{
 		if (Runtime.StackWidget.IsValid() && Runtime.StackWidget->SelectByContextId(ContextId))
 		{
+			// Foreground the owning tab: selecting in a background stack is invisible when
+			// another tab of the same stack (e.g. a sibling array) is the active one.
+			TSharedPtr<FTabManager> TabManagerPin = GetTabManager();
+			if (TabManagerPin.IsValid())
+			{
+				TabManagerPin->TryInvokeTab(Runtime.TabId);
+			}
 			return true;
 		}
 	}
