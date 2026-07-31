@@ -13,6 +13,7 @@
 #include "ClassViewerFilter.h"
 #include "ClassViewerModule.h"
 #include "IDetailChildrenBuilder.h"
+#include "IDetailGroup.h"
 #include "PropertyHandle.h"
 
 // --- Custom Drag and Drop Operation Template ---
@@ -196,6 +197,19 @@ struct FKzPropertyHandleUtils
 		}
 	}
 
+	/**
+	 * Like AddChildrenHonoringInnerProperties, but children whose Category has three or more
+	 * segments render inside a collapsible group named after the last segment ("A|B|Audio"
+	 * puts the child in an "Audio" group). One- and two-segment categories stay flat, in
+	 * declaration order; each group appears at the position of its first member and collects
+	 * later members regardless of interleaving.
+	 */
+	static void AddChildrenGroupedByCategory(IDetailChildrenBuilder& StructBuilder, TSharedRef<IPropertyHandle> StructHandle, const TSet<FName>& SkipChildren = TSet<FName>())
+	{
+		TMap<FString, IDetailGroup*> Groups;
+		AddChildrenGroupedByCategoryInner(StructBuilder, StructHandle, SkipChildren, Groups);
+	}
+
 	/** Returns true if PropertyHandle or any of its ancestor handles have the given metadata. */
 	static bool HasMetaDataInHierarchy(TSharedPtr<IPropertyHandle> PropertyHandle, FName MetaKey)
 	{
@@ -221,5 +235,47 @@ struct FKzPropertyHandleUtils
 		}
 		static const FString Empty;
 		return Empty;
+	}
+
+private:
+	/** Recursion body of AddChildrenGroupedByCategory; Groups persists across the ShowOnlyInnerProperties flattening. */
+	static void AddChildrenGroupedByCategoryInner(IDetailChildrenBuilder& StructBuilder, TSharedRef<IPropertyHandle> StructHandle, const TSet<FName>& SkipChildren, TMap<FString, IDetailGroup*>& Groups)
+	{
+		uint32 NumChildren = 0;
+		StructHandle->GetNumChildren(NumChildren);
+		for (uint32 i = 0; i < NumChildren; ++i)
+		{
+			TSharedPtr<IPropertyHandle> Child = StructHandle->GetChildHandle(i);
+			if (!Child.IsValid()) { continue; }
+
+			const FProperty* Property = Child->GetProperty();
+			if (Property && SkipChildren.Contains(Property->GetFName())) { continue; }
+
+			if (Property && Property->IsA<FStructProperty>() && Property->HasMetaData(TEXT("ShowOnlyInnerProperties")))
+			{
+				AddChildrenGroupedByCategoryInner(StructBuilder, Child.ToSharedRef(), TSet<FName>(), Groups);
+				continue;
+			}
+
+			TArray<FString> Segments;
+			if (Property)
+			{
+				Property->GetMetaData(TEXT("Category")).ParseIntoArray(Segments, TEXT("|"));
+			}
+			if (Segments.Num() >= 3)
+			{
+				const FString& GroupName = Segments.Last();
+				IDetailGroup*& Group = Groups.FindOrAdd(GroupName);
+				if (!Group)
+				{
+					Group = &StructBuilder.AddGroup(FName(*GroupName), FText::FromString(GroupName));
+				}
+				Group->AddPropertyRow(Child.ToSharedRef());
+			}
+			else
+			{
+				StructBuilder.AddProperty(Child.ToSharedRef());
+			}
+		}
 	}
 };
