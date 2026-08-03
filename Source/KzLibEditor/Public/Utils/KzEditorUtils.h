@@ -202,12 +202,13 @@ struct FKzPropertyHandleUtils
 	 * segments render inside a collapsible group named after the last segment ("A|B|Audio"
 	 * puts the child in an "Audio" group). One- and two-segment categories stay flat, in
 	 * declaration order; each group appears at the position of its first member and collects
-	 * later members regardless of interleaving.
+	 * later members regardless of interleaving. OutGroups (optional) receives the created
+	 * groups by name so callers can append custom rows into them.
 	 */
-	static void AddChildrenGroupedByCategory(IDetailChildrenBuilder& StructBuilder, TSharedRef<IPropertyHandle> StructHandle, const TSet<FName>& SkipChildren = TSet<FName>())
+	static void AddChildrenGroupedByCategory(IDetailChildrenBuilder& StructBuilder, TSharedRef<IPropertyHandle> StructHandle, const TSet<FName>& SkipChildren = TSet<FName>(), TMap<FString, IDetailGroup*>* OutGroups = nullptr)
 	{
-		TMap<FString, IDetailGroup*> Groups;
-		AddChildrenGroupedByCategoryInner(StructBuilder, StructHandle, SkipChildren, Groups);
+		TMap<FString, IDetailGroup*> LocalGroups;
+		AddChildrenGroupedByCategoryInner(StructBuilder, StructHandle, SkipChildren, OutGroups ? *OutGroups : LocalGroups);
 	}
 
 	/** Returns true if PropertyHandle or any of its ancestor handles have the given metadata. */
