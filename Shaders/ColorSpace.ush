@@ -1,0 +1,90 @@
+#pragma once
+
+#ifndef PI
+#define PI 3.14159265359
+#endif
+
+/** RGB to hue, saturation and value. Value is plain max(RGB) and never clamped, so HDR round-trips. */
+float3 KzRGBToHSV(float3 RGB)
+{
+    float4 P = (RGB.g < RGB.b) ? float4(RGB.bg, -1.0, 2.0 / 3.0) : float4(RGB.gb, 0.0, -1.0 / 3.0);
+    float4 Q = (RGB.r < P.x) ? float4(P.xyw, RGB.r) : float4(RGB.r, P.yzx);
+    float Chroma = Q.x - min(Q.w, Q.y);
+    float Hue = abs((Q.w - Q.y) / (6.0 * Chroma + 1e-10) + Q.z);
+
+    return float3(Hue, Chroma / (Q.x + 1e-10), Q.x);
+}
+
+/** Inverse of KzRGBToHSV. Hue wraps, so values outside [0,1] are valid input. */
+float3 KzHSVToRGB(float3 HSV)
+{
+    float H = HSV.r;
+    float3 RGB = saturate(float3(abs(H * 6 - 3) - 1, 2 - abs(H * 6 - 2), 2 - abs(H * 6 - 4)));
+
+    return ((RGB - 1) * HSV.y + 1) * HSV.z;
+}
+
+/** Cube root that keeps the sign of its argument, where a bare pow() would return NaN. */
+float3 KzCbrt(float3 X)
+{
+    return sign(X) * pow(abs(X), 1.0 / 3.0);
+}
+
+/**
+ * Linear sRGB to OKLab. L is perceptual lightness, a and b the green-red and blue-yellow opponent
+ * axes, and equal steps in it read as equal steps to the eye. Unbounded, so HDR passes through.
+ *
+ * @see https://bottosson.github.io/posts/oklab/
+ */
+float3 KzLinearSRGBToOkLab(float3 RGB)
+{
+    float3 LMS = float3(
+        dot(RGB, float3(0.4122214708, 0.5363325363, 0.0514459929)),
+        dot(RGB, float3(0.2119034982, 0.6806995451, 0.1073969566)),
+        dot(RGB, float3(0.0883024619, 0.2817188376, 0.6299787005)));
+
+    LMS = KzCbrt(LMS);
+
+    return float3(
+        dot(LMS, float3(0.2104542553,  0.7936177850, -0.0040720468)),
+        dot(LMS, float3(1.9779984951, -2.4285922050,  0.4505937099)),
+        dot(LMS, float3(0.0259040371,  0.7827717662, -0.8086757660)));
+}
+
+/** Inverse of KzLinearSRGBToOkLab. OKLab is wider than sRGB, so the result may come back negative. */
+float3 KzOkLabToLinearSRGB(float3 Lab)
+{
+    float3 LMS = float3(
+        dot(Lab, float3(1.0,  0.3963377774,  0.2158037573)),
+        dot(Lab, float3(1.0, -0.1055613458, -0.0638541728)),
+        dot(Lab, float3(1.0, -0.0894841775, -1.2914855480)));
+
+    LMS = LMS * LMS * LMS;
+
+    return float3(
+        dot(LMS, float3( 4.0767416621, -3.3077115913,  0.2309699292)),
+        dot(LMS, float3(-1.2684380046,  2.6097574011, -0.3413193965)),
+        dot(LMS, float3(-0.0041960863, -0.7034186147,  1.7076147010)));
+}
+
+/** OKLab in polar form: lightness, chroma, and hue in turns [0,1). */
+float3 KzRGBToOkLCh(float3 RGB)
+{
+    float3 Lab = KzLinearSRGBToOkLab(RGB);
+
+    // Both biases guard the achromatic case, where the opponent axes are exactly zero: atan2(0, 0)
+    // is undefined, and length() compiles to dot * rsqrt(dot) on some backends, which is 0 * INF.
+    float Hue = atan2(Lab.z, Lab.y + 1e-10) * (0.5 / PI);
+    float Chroma = sqrt(dot(Lab.yz, Lab.yz) + 1e-20);
+
+    return float3(Lab.x, Chroma, Hue - floor(Hue));
+}
+
+/** Inverse of KzRGBToOkLCh. */
+float3 KzOkLChToRGB(float3 LCh)
+{
+    float SinHue, CosHue;
+    sincos(LCh.z * (2.0 * PI), SinHue, CosHue);
+
+    return KzOkLabToLinearSRGB(float3(LCh.x, LCh.y * CosHue, LCh.y * SinHue));
+}

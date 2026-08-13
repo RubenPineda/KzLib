@@ -1,25 +1,52 @@
 #pragma once
 
+#include "/KzLib/ColorSpace.ush"
+#include "/KzLib/Easings.ush"
+
+/** Signed value with a flat band of the given half-width removed around zero. */
+float KzDeadzone(float Value, float Width)
+{
+    return sign(Value) * max(abs(Value) - Width, 0.0);
+}
+
+/** Snaps to Steps bands per unit, with Contrast hardening the transition between them. */
+float KzQuantize(float Value, float Steps, float Contrast)
+{
+    // Zero bands is 0/0. An instance slider range is a hint, not a clamp, so the floor lives here.
+    Steps = max(Steps, 1e-3);
+
+    float Scaled = Value * Steps;
+    return (floor(Scaled) + SCurve(frac(Scaled), Contrast)) / Steps;
+}
+
+/**
+ * Second derivative of the scene's depth and normals over a rotated elliptical kernel: rgb carries
+ * the normal difference, a the depth one. Both read zero on flat and smoothly curved surfaces and
+ * spike on creases and silhouettes.
+ *
+ * KernelSquashFactor above 1 narrows the kernel across the rotation axis, and only means anything
+ * from KernelSize 5 up: at 3 the ellipse is thinner than a texel and only its long axis survives.
+ */
 float4 LaplacianFilter(FMaterialPixelParameters Parameters, float KernelSize, float KernelRotation, float KernelSquashFactor)
 {
-	if (KernelSize < 2.0) return float4(0.0, 0.0, 0.0, 0.0);
+    if (KernelSize < 2.0) return float4(0.0, 0.0, 0.0, 0.0);
 
     float2 KernelUVs = GetDefaultSceneTextureUV(Parameters, 1);
-    float2 TexelSize = GetSceneTextureViewSize(1).zw;
-    
-    // Precompute rotation sine/cosine once
+
+    // Buffer texels, not view texels: in split screen a view is a sub-rect of the shared scene
+    // textures, so 1/ViewSize oversteps and the outline comes out proportionally thicker.
+    float2 TexelSize = View.BufferSizeAndInvSize.zw;
+
     float2 RotationVector = float2(cos(KernelRotation), sin(KernelRotation));
 
     float DepthDifferenceSum = 0.0;
     float3 NormalDifferenceSum = float3(0.0, 0.0, 0.0);
     float SampleCount = 0.0;
 
-    // Ideally, keep KernelSize small (e.g., 3 to 5) for performance.
     KernelSize = floor(KernelSize);
     float HalfKernelSize = floor(KernelSize / 2.0);
-    float HalfKernelSizeSq = HalfKernelSize * HalfKernelSize; 
+    float HalfKernelSizeSq = HalfKernelSize * HalfKernelSize;
 
-    // We sample the center pixel once to compare against neighbors
     float CenterDepth = SceneTextureLookup(KernelUVs, 1, false).r;
     float3 CenterNormal = SceneTextureLookup(KernelUVs, 8, false).rgb;
 
@@ -27,38 +54,101 @@ float4 LaplacianFilter(FMaterialPixelParameters Parameters, float KernelSize, fl
     {
         for (float x = -HalfKernelSize; x <= HalfKernelSize; x++)
         {
-            // Skip the center pixel loop
             if (x == 0 && y == 0) continue;
 
-            // If Factor > 1.0, the kernel is compressed on the X-axis (relative to rotation).
-            // If Factor < 1.0, the kernel is stretched.
             float2 RotatedPoint = float2(dot(RotationVector, float2(KernelSquashFactor * x, y)), dot(RotationVector, float2(y, -KernelSquashFactor * x)));
 
-            // Check if pixel is inside the kernel shape (Early Exit)
-            if (dot(RotatedPoint, RotatedPoint) > HalfKernelSizeSq)
+            // The slack matters: a squashed kernel puts its surviving taps exactly on the boundary,
+            // and a rounding difference between platforms would drop every one of them.
+            if (dot(RotatedPoint, RotatedPoint) > HalfKernelSizeSq + 1e-3)
             {
                 continue;
             }
 
             SampleCount++;
 
-            float2 OffsetUVs = KernelUVs + TexelSize * float2(x, y);
+            float2 OffsetUVs = ClampSceneTextureUV(KernelUVs + TexelSize * float2(x, y), 1);
             float NeighborDepth = SceneTextureLookup(OffsetUVs, 1, false).r;
             float3 NeighborNormal = SceneTextureLookup(OffsetUVs, 8, false).rgb;
 
-            // Calculate how different this neighbor is from the center
             DepthDifferenceSum += (CenterDepth - NeighborDepth);
             NormalDifferenceSum += (CenterNormal - NeighborNormal);
-        }   
+        }
     }
 
-    // Normalize
     if (SampleCount > 0.0)
     {
-    	SampleCount = 1.0 / SampleCount;
+        SampleCount = 1.0 / SampleCount;
         DepthDifferenceSum *= SampleCount;
         NormalDifferenceSum *= SampleCount;
     }
 
     return float4(NormalDifferenceSum, DepthDifferenceSum);
+}
+
+/**
+ * Posterizes the scene's lighting and inks its edges. Recovers the lighting by dividing out the
+ * GBuffer albedo, so it must run BEFORE anything composites non-geometry over the scene: a
+ * screen-space effect reaching this node gets divided by the albedo of whatever it covers.
+ *
+ * Hue and chroma come from OKLab, where the bands land evenly around the circle instead of
+ * drowning in the greens. Lightness works in stops, so every constant below means the same thing
+ * whatever the level's brightness. Rim and outline are offsets in stops.
+ *
+ * HueQuantize packs bands and contrast. LightnessQuantize packs bands per stop, contrast, how far
+ * to blend toward the quantized value, and the band scale applied to metals. RimAngles is the
+ * grazing window in fractions of a right angle. OutlineKernel packs size, rotation and squash;
+ * OutlineDeadzone the depth and normal thresholds; OutlineClamp the stops a line may darken and
+ * brighten.
+ */
+float3 CelShade(FMaterialPixelParameters Parameters, float3 SceneColor, float AlbedoFloor, float2 HueQuantize, float4 LightnessQuantize, float2 RimAngles, float RimIntensity, float3 OutlineKernel, float2 OutlineDeadzone, float2 OutlineClamp)
+{
+    float2 UV = GetViewportUV(Parameters);
+    float3 BaseColor = SceneTextureLookup(ClampSceneTextureUV(ViewportUVToSceneTextureUV(UV, 5), 5), 5, false).rgb;
+
+    // Nothing wrote an albedo here, so there is no lighting to recover and no shape to ink.
+    if (max(BaseColor.r, max(BaseColor.g, BaseColor.b)) <= 1e-4)
+    {
+        return SceneColor;
+    }
+
+    // Dividing out the albedo leaves the lighting alone, which is the only term worth posterizing:
+    // banding the lit colour bands the textures with it. The floor stops a near-black albedo from
+    // turning a stray specular into an enormous ratio.
+    float3 LCh = KzRGBToOkLCh(SceneColor / max(BaseColor, AlbedoFloor));
+
+    // Chroma relative to lightness, the way HSV saturation was. Kept absolute, an inked pixel holds
+    // a chroma its new lightness cannot represent and the hue visibly swings along every edge.
+    float Chroma = LCh.y / max(LCh.x, 1e-4);
+
+    float Metallic = SceneTextureLookup(GetDefaultSceneTextureUV(Parameters, 7), 7, false).r;
+    float3 Normal = SceneTextureLookup(GetDefaultSceneTextureUV(Parameters, 8), 8, false).rgb;
+
+    float Hue = KzQuantize(LCh.z, HueQuantize.x, HueQuantize.y);
+
+    // OKLab lightness is a cube root, so a fixed step is a different ratio at every brightness and
+    // every constant below would end up tied to how bright the level happens to be. Stops are
+    // invariant, and a neutral colour has Value = L^3, so three stops of L are one stop of it.
+    float Stops = 3.0 * log2(max(LCh.x, 1e-6));
+
+    float Bands = LightnessQuantize.x * lerp(1.0, LightnessQuantize.w, Metallic);
+    Stops = lerp(Stops, KzQuantize(Stops, Bands, LightnessQuantize.y), LightnessQuantize.z);
+
+    // Grazing rim on metals. Authoring the window in fractions of a right angle keeps its cosines
+    // uniform, so there is no acos per pixel and no way for one to go NaN on a GBuffer normal that
+    // decodes slightly longer than unit. Saturating Z keeps downward-facing metal from subtracting.
+    float2 RimCos = cos(RimAngles * (PI * 0.5));
+    float Rim = saturate((RimCos.x - dot(Parameters.CameraVector, Normal)) / max(RimCos.x - RimCos.y, 1e-4));
+    Stops += Rim * Rim * saturate(Normal.z) * RimIntensity * Metallic;
+
+    // The deadzones keep gentle curvature from registering as an edge, and the clamp is asymmetric
+    // so a crease goes properly dark while the highlight on its far side stays contained.
+    float4 Edges = LaplacianFilter(Parameters, OutlineKernel.x, OutlineKernel.y, OutlineKernel.z);
+    float DepthEdge = KzDeadzone(Edges.a, OutlineDeadzone.x);
+    float NormalEdge = KzDeadzone(dot(Edges.rgb, Parameters.CameraVector), OutlineDeadzone.y);
+    Stops += clamp(-(DepthEdge + NormalEdge), OutlineClamp.x, OutlineClamp.y);
+
+    float Lightness = exp2(Stops / 3.0);
+
+    return KzOkLChToRGB(float3(Lightness, Chroma * Lightness, Hue)) * BaseColor;
 }
