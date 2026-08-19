@@ -203,12 +203,14 @@ struct FKzPropertyHandleUtils
 	 * puts the child in an "Audio" group). One- and two-segment categories stay flat, in
 	 * declaration order; each group appears at the position of its first member and collects
 	 * later members regardless of interleaving. OutGroups (optional) receives the created
-	 * groups by name so callers can append custom rows into them.
+	 * groups by name so callers can append custom rows into them. CustomizeChild (optional)
+	 * may claim a child and add its row itself (return true); claimed rows land at the root,
+	 * at their declaration position.
 	 */
-	static void AddChildrenGroupedByCategory(IDetailChildrenBuilder& StructBuilder, TSharedRef<IPropertyHandle> StructHandle, const TSet<FName>& SkipChildren = TSet<FName>(), TMap<FString, IDetailGroup*>* OutGroups = nullptr)
+	static void AddChildrenGroupedByCategory(IDetailChildrenBuilder& StructBuilder, TSharedRef<IPropertyHandle> StructHandle, const TSet<FName>& SkipChildren = TSet<FName>(), TMap<FString, IDetailGroup*>* OutGroups = nullptr, const TFunction<bool(IDetailChildrenBuilder&, TSharedRef<IPropertyHandle>)>& CustomizeChild = nullptr)
 	{
 		TMap<FString, IDetailGroup*> LocalGroups;
-		AddChildrenGroupedByCategoryInner(StructBuilder, StructHandle, SkipChildren, OutGroups ? *OutGroups : LocalGroups);
+		AddChildrenGroupedByCategoryInner(StructBuilder, StructHandle, SkipChildren, OutGroups ? *OutGroups : LocalGroups, CustomizeChild);
 	}
 
 	/** Returns true if PropertyHandle or any of its ancestor handles have the given metadata. */
@@ -240,7 +242,7 @@ struct FKzPropertyHandleUtils
 
 private:
 	/** Recursion body of AddChildrenGroupedByCategory; Groups persists across the ShowOnlyInnerProperties flattening. */
-	static void AddChildrenGroupedByCategoryInner(IDetailChildrenBuilder& StructBuilder, TSharedRef<IPropertyHandle> StructHandle, const TSet<FName>& SkipChildren, TMap<FString, IDetailGroup*>& Groups)
+	static void AddChildrenGroupedByCategoryInner(IDetailChildrenBuilder& StructBuilder, TSharedRef<IPropertyHandle> StructHandle, const TSet<FName>& SkipChildren, TMap<FString, IDetailGroup*>& Groups, const TFunction<bool(IDetailChildrenBuilder&, TSharedRef<IPropertyHandle>)>& CustomizeChild = nullptr)
 	{
 		uint32 NumChildren = 0;
 		StructHandle->GetNumChildren(NumChildren);
@@ -252,9 +254,11 @@ private:
 			const FProperty* Property = Child->GetProperty();
 			if (Property && SkipChildren.Contains(Property->GetFName())) { continue; }
 
+			if (CustomizeChild && CustomizeChild(StructBuilder, Child.ToSharedRef())) { continue; }
+
 			if (Property && Property->IsA<FStructProperty>() && Property->HasMetaData(TEXT("ShowOnlyInnerProperties")))
 			{
-				AddChildrenGroupedByCategoryInner(StructBuilder, Child.ToSharedRef(), TSet<FName>(), Groups);
+				AddChildrenGroupedByCategoryInner(StructBuilder, Child.ToSharedRef(), TSet<FName>(), Groups, CustomizeChild);
 				continue;
 			}
 
