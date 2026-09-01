@@ -6,6 +6,7 @@
 #include "PrimitiveSceneProxy.h"
 #include "SceneManagement.h"
 #include "Engine/Engine.h"
+#include "Engine/World.h"
 
 UKzShapeComponent::UKzShapeComponent()
 {
@@ -25,10 +26,32 @@ void UKzShapeComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UKzShapeComponent, Shape) || PropertyName == GET_MEMBER_NAME_CHECKED(UKzShapeComponent, bDrawSolid))
+	const FName MemberName = PropertyChangedEvent.GetMemberPropertyName();
+	if (MemberName != GET_MEMBER_NAME_CHECKED(UKzShapeComponent, Shape) && MemberName != GET_MEMBER_NAME_CHECKED(UKzShapeComponent, bDrawSolid))
 	{
-		MarkRenderStateDirty();
+		return;
+	}
+
+	MarkRenderStateDirty();
+
+	// The details panel only propagates archetype edits that go through ImportText. The instanced struct picker
+	// writes the picked shape straight into the raw memory of the edited object, so a Blueprint preview actor
+	// keeps rendering the previous shape until the Blueprint is recompiled. Push the new one to it by hand.
+	if (IsTemplate() && MemberName == GET_MEMBER_NAME_CHECKED(UKzShapeComponent, Shape))
+	{
+		TArray<UObject*> Instances;
+		GetArchetypeInstances(Instances);
+
+		for (UObject* Instance : Instances)
+		{
+			UKzShapeComponent* PreviewComponent = Cast<UKzShapeComponent>(Instance);
+			const UWorld* PreviewWorld = PreviewComponent ? PreviewComponent->GetWorld() : nullptr;
+			if (PreviewWorld && PreviewWorld->WorldType == EWorldType::EditorPreview)
+			{
+				PreviewComponent->Shape = Shape;
+				PreviewComponent->MarkRenderStateDirty();
+			}
+		}
 	}
 }
 #endif
